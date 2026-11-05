@@ -1,0 +1,161 @@
+Write, test, and deploy UntouchedVault.sol containing two contracts for the Untouched principal-protected AI gateway on Arc Testnet (chain ID 5042002).
+
+## Contract 1: MockUSYCOracle
+
+Implement a mock Chainlink AggregatorV3Interface oracle for USYC yield simulation (5% APY):
+
+- Solidity ^0.8.20
+- Implement `latestRoundData()` returning `(uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)`
+- Implement `decimals()` returning `8`
+- Start with `currentNav = 100_000_000` (8 decimals = $1.00000000)
+- `simulateDaysPassed(uint256 daysCount)` function:
+  * Increases NAV by `daysCount * 13698` per day
+  * After 14 days: `currentNav = 100_191_780` ($1.00191780)
+  * Increments `roundId`
+  * Updates `updatedAt` timestamp
+  * Emits `NavUpdated(uint80 roundId, int256 newNav, uint256 daysSimulated)`
+- Owner-only access to `simulateDaysPassed()`
+
+## Contract 2: PrincipalCreditVault
+
+Principal-protected vault with credit advance system supporting flexible deposits ($10-$250+):
+
+### Constructor & Constants
+
+- `constructor(address _usdc, address _usycOracle)`
+- Arc Testnet USDC address: `0x3600000000000000000000000000000000000000`
+- `MIN_DEPOSIT_USDC = 10_000000` ($10 minimum, 6 decimals)
+- `GAS_BUFFER_USDC = 500` ($0.0005 gas buffer for Arc Testnet — addresses Guardrail G2)
+- No maximum deposit cap (supports $10, $50, $100, $250, or any amount ≥ $10)
+
+### State Variables
+
+Per-user state tracking:
+- `principalUsdc` — original deposit amount (variable: $10, $50, $100, $250+)
+- `shares` — USYC vault shares minted
+- `maxPerCallUsdc` — spending limit per AI call (default $0.005 = 5000)
+- `agentSignerEOA` — isolated EOA address for API key
+- `unpaidAdvanceUsdc` — outstanding credit advance owed
+- `worldIdNullifier` — sybil resistance (1 human = 1 credit line)
+
+Global state:
+- `creditReservePool` — USDC pool funding instant credit advances
+- `usedWorldIdNullifiers` mapping — prevents duplicate World ID usage
+
+### Core Functions
+
+**fundReservePool(uint256 amountUsdc)**
+- Owner-only
+- Seeds the credit reserve pool with USDC
+- Emits `ReservePoolFunded(uint256 amount)`
+
+**depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 worldIdNullifier)**
+- Require `amountUsdc >= MIN_DEPOSIT_USDC` (enforces $10 minimum)
+- Require `!usedWorldIdNullifiers[worldIdNullifier]` (sybil check)
+- Mark `usedWorldIdNullifiers[worldIdNullifier] = true`
+- **CRITICAL: Read `usycOracle.latestRoundData()` onchain** (state-changing oracle read — mandatory for Chainlink CRE track)
+- Mint vault shares: `shares = (amountUsdc * 1e20) / uint256(nav)`
+- **Dynamic advance calculation** (14-day 5% APY yield): `advance = (amountUsdc * 500 * 14) / (10000 * 365)`
+  * Examples: $10→95219 ($0.095219), $50→95890 ($0.095890), $100→191780 ($0.191780), $250→479452 ($0.479452)
+- Pull `amountUsdc` from `msg.sender` via `transferFrom`
+- Transfer `advance + GAS_BUFFER_USDC` from `creditReservePool` to `agentSignerEOA`
+  * The `GAS_BUFFER_USDC` covers the gas cost for the Agent Signer EOA to deposit the advance into Circle GatewayWallet
+  * After gas is paid, exactly `advance` USDC lands in the Gateway balance for a clean UI battery
+- Set `unpaidAdvanceUsdc = advance`
+- Set `maxPerCallUsdc = 5000` (default $0.005)
+- Emit `DepositWithAdvance(address indexed user, uint256 principalUsdc, uint256 advanceUsdc, uint256 shares, address agentSignerEOA, bytes32 worldIdNullifier)`
+
+**getAccruedSurplusUsdc(address user) view returns (uint256)**
+- Read `usycOracle.latestRoundData()` to get current NAV
+- Calculate current value of user's shares: `currentValueUsdc = (shares * uint256(nav)) / 1e20`
+- Return surplus above principal: `max(0, currentValueUsdc - principalUsdc)`
+
+**reconcileAndRepay(address user)**
+- **CRITICAL: Read `usycOracle.latestRoundData()` onchain** (state-changing oracle read in a mutating function)
+- Calculate accrued surplus above `principalUsdc`
+- If `surplus >= unpaidAdvanceUsdc`:
+  * Redeem surplus shares to USDC
+  * Transfer `unpaidAdvanceUsdc` back to `creditReservePool` (repay the advance)
+  * Set `unpaidAdvanceUsdc = 0`
+  * Send any excess surplus to the user's `agentSignerEOA` (refill their battery)
+- Emit `YieldReconciled(address indexed user, uint256 surplusUsdc, uint256 repaidUsdc)`
+
+**withdrawPrincipal()**
+- Callable by user only
+- **Principal-First Early Exit Solvency**: `payout = principalUsdc - max(0, unpaidAdvanceUsdc - currentSurplus)`
+  * If surplus covers advance: full principal returned
+  * If surplus < advance: principal reduced by the shortfall
+  * The unpaid shortfall is forgiven and removed from `creditReservePool`
+- Redeem all shares
+- Transfer `payout` to `msg.sender`
+- Clean up user state
+- Emit `PrincipalWithdrawn(address indexed user, uint256 payoutUsdc, uint256 unpaidShortfallUsdc)`
+
+**updateSpendPolicy(uint256 newMaxPerCallUsdc, address newAgentSignerEOA)**
+- Callable by user only
+- Updates per-call spending limit and/or Agent Signer EOA
+- Emit `SpendPolicyUpdated(address indexed user, uint256 newMaxPerCallUsdc, address newAgentSignerEOA)`
+
+### Events
+
+- `ReservePoolFunded(uint256 amount)`
+- `DepositWithAdvance(address indexed user, uint256 principalUsdc, uint256 advanceUsdc, uint256 shares, address agentSignerEOA, bytes32 worldIdNullifier)`
+- `YieldReconciled(address indexed user, uint256 surplusUsdc, uint256 repaidUsdc)`
+- `PrincipalWithdrawn(address indexed user, uint256 payoutUsdc, uint256 unpaidShortfallUsdc)`
+- `SpendPolicyUpdated(address indexed user, uint256 newMaxPerCallUsdc, address newAgentSignerEOA)`
+
+## Testing Requirements
+
+Write comprehensive Foundry unit tests (`UntouchedVault.t.sol`) verifying:
+
+1. **$50 Deposit Flow**:
+   - Deposit $50 USDC → advance = $0.095890 (95890) + gas buffer (500) = 96390 transferred
+   - Verify shares minted correctly
+   - Verify `unpaidAdvanceUsdc = 95890`
+
+2. **$100 Deposit Flow**:
+   - Deposit $100 USDC → advance = $0.191780 (191780) + gas buffer (500) = 192280 transferred
+   - Verify shares minted correctly
+   - Verify `unpaidAdvanceUsdc = 191780`
+
+3. **14-Day NAV Simulation + Reconciliation**:
+   - Call `MockUSYCOracle.simulateDaysPassed(14)`
+   - Verify NAV increased to `100_191_780`
+   - Call `reconcileAndRepay()` for the user
+   - Verify `unpaidAdvanceUsdc = 0`
+   - Verify credit reserve pool repaid
+
+4. **Early Exit Solvency**:
+   - User deposits $50, receives advance
+   - User withdraws immediately (before any yield)
+   - Verify payout = `$50 - $0.095890` (principal reduced by unpaid advance shortfall)
+   - Verify no revert
+
+5. **World ID Sybil Resistance**:
+   - First deposit with nullifier → succeeds
+   - Second deposit with same nullifier → reverts
+
+6. **Minimum Deposit Enforcement**:
+   - Deposit $9.99 → reverts
+   - Deposit $10.00 → succeeds
+
+## Deployment
+
+Deploy both contracts to **Arc Testnet** (chain ID `5042002`):
+
+1. Deploy `MockUSYCOracle` first
+2. Deploy `PrincipalCreditVault(0x3600000000000000000000000000000000000000, <oracleAddress>)`
+3. Fund the credit reserve pool with test USDC via `fundReservePool()`
+4. Return deployment addresses and transaction hashes
+
+## Notes for Arc Studio
+
+- Use Solidity ^0.8.20
+- Use OpenZeppelin contracts for `Ownable`, `ReentrancyGuard`, `SafeERC20`
+- All monetary amounts are in USDC 6 decimals (e.g., $50 = 50_000000)
+- NAV uses 8 decimals (e.g., $1.00191780 = 100_191_780)
+- The `latestRoundData()` calls in `depositWithCreditAdvance()` and `reconcileAndRepay()` MUST write to storage (even if just incrementing a dummy counter) to satisfy Chainlink CRE track requirements for state-changing oracle reads
+- All arithmetic should use unchecked where safe to save gas
+- Include NatSpec documentation for all public functions
+
+Use "balanced" preset for audit rigor. Test thoroughly, then deploy to Arc Testnet.
