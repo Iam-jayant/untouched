@@ -1,0 +1,54 @@
+# Chainlink Runtime Environment (CRE) Workflow
+# Reconciles USYC Treasury Yield and repays Credit Reserve Pool every 6 hours
+
+name: untouched-yield-reconciliation
+version: 1.0.0
+
+triggers:
+  - type: cron
+    schedule: "0 */6 * * *" # Every 6 hours
+    description: "Reconcile USYC yield and repay Credit Reserve Pool"
+
+env:
+  ARC_TESTNET_RPC: "https://sepolia.arc.io"
+  USYC_ORACLE_ADDRESS: "0x3cc26da603767966929c57f9b5c69030feaac4bf"
+  VAULT_ADDRESS: "0x649a09b10c70fffe9ef5f8d70e5a7de292b793df"
+  MIN_SURPLUS_THRESHOLD_USDC: "1000000" # $1 minimum
+
+sources:
+  - name: usyc-oracle
+    type: evm-read
+    config:
+      chain: arc-testnet
+      chainId: 5042002
+      address: "${USYC_ORACLE_ADDRESS}"
+      method: "latestRoundData()"
+      outputs: ["uint80", "int256", "uint256", "uint256", "uint80"]
+
+  - name: vault-surplus
+    type: evm-read
+    config:
+      chain: arc-testnet
+      chainId: 5042002
+      address: "${VAULT_ADDRESS}"
+      method: "getAccruedSurplusUsdc()"
+      outputs: ["uint256"]
+
+consensus:
+  type: chainlink-ocr
+  participants: 4
+  threshold: 3
+
+actions:
+  - name: reconcile-and-repay
+    type: evm-write
+    condition: "vault-surplus.output[0] >= env.MIN_SURPLUS_THRESHOLD_USDC"
+    config:
+      chain: arc-testnet
+      chainId: 5042002
+      address: "${VAULT_ADDRESS}"
+      method: "reconcileAndRepay(address)"
+      params:
+        - type: address
+          value: "msg.sender"
+      gasLimit: 200000
