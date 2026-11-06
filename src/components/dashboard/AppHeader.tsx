@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Shield, Smartphone, Terminal, Zap } from 'lucide-react';
 import type { UserState } from '@/lib/types';
@@ -25,6 +26,10 @@ export function AppHeader({
   onDisconnect,
   onPair,
 }: AppHeaderProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const address = mounted ? walletAddress : null;
+  const reconnecting = mounted && walletStatus === 'reconnecting';
   return (
     <nav className="sticky top-0 z-50 border-b border-white/10 bg-black/80 backdrop-blur-xl">
       <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
@@ -61,20 +66,20 @@ export function AppHeader({
               Playground
             </Link>
 
-            {!walletAddress ? (
+            {!address ? (
               <button
                 onClick={onConnect}
-                disabled={walletStatus === 'reconnecting'}
+                disabled={reconnecting}
                 className="flex items-center gap-2 px-5 py-2.5 whitespace-nowrap bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded font-medium text-sm transition-all duration-300 shadow-lg hover:shadow-orange-500/50 disabled:opacity-70"
               >
-                <span>{walletStatus === 'reconnecting' ? 'Restoring wallet…' : 'Connect Wallet'}</span>
+                <span>{reconnecting ? 'Restoring wallet…' : 'Connect Wallet'}</span>
               </button>
             ) : (
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-emerald-500/10 to-emerald-600/10 border border-emerald-500/30 rounded">
                   <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   <span className="text-xs font-mono text-emerald-300">
-                    {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                    {address.slice(0, 6)}...{address.slice(-4)}
                   </span>
                 </div>
                 {userState?.agentSigner && (

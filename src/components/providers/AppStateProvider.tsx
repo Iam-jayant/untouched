@@ -84,7 +84,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         try {
           const parsed = JSON.parse(cachedState);
           if (parsed && typeof parsed === 'object') {
-            setUserState(parsed);
+            setUserState((current) => {
+              if (current && (current.principal || 0) > (parsed.principal || 0)) return current;
+              return parsed;
+            });
           }
         } catch {}
       }
@@ -118,7 +121,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     if (data.user) {
       setUserState((current) => {
         const incoming = data.user;
-        const keepBalances = current && current.principal > 0 && !(incoming.principal > 0);
+        const keepBalances = current && (current.principal || 0) > (incoming.principal || 0);
         const next = keepBalances
           ? {
               ...incoming,
@@ -209,7 +212,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         if (data.userState) {
           setUserState((current) => {
             const incoming = data.userState;
-            const keepBalances = current && current.principal > 0 && !(incoming.principal > 0);
+            const keepBalances = current && (current.principal || 0) > (incoming.principal || 0);
             const next = keepBalances
               ? {
                   ...incoming,

@@ -132,10 +132,10 @@ export default function DashboardPage() {
               </p>
               <button
                 onClick={connectWallet}
-                disabled={walletStatus === 'reconnecting'}
+                disabled={isVisible && walletStatus === 'reconnecting'}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all duration-300 shadow-lg hover:shadow-orange-500/50 disabled:opacity-70"
               >
-                <span>{walletStatus === 'reconnecting' ? 'Restoring wallet…' : 'Connect Wallet'}</span>
+                <span>{isVisible && walletStatus === 'reconnecting' ? 'Restoring wallet…' : 'Connect Wallet'}</span>
               </button>
             </div>
           ) : (

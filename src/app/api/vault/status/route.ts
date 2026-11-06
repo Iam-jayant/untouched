@@ -6,6 +6,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getUser, getReceipts, getPendingApprovals } from '@/lib/agent-store';
+import { VAULT_ADDRESS } from '@/lib/constants';
+import { readVaultPosition } from '@/lib/arc';
+import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export async function GET(req: NextRequest) {
   try {
@@ -37,6 +40,41 @@ export async function GET(req: NextRequest) {
     
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const wallet = (user.walletAddress || (queryWallet?.startsWith('0x') ? queryWallet : '')).toLowerCase();
+    if (wallet && VAULT_ADDRESS) {
+      try {
+        const position = await readVaultPosition(VAULT_ADDRESS, wallet);
+        const spentInDb = Math.max(0, (user.battery || 0) - (user.remaining || 0));
+        const used = Math.max(position.usedCredit, spentInDb);
+        const remaining = Math.max(0, position.yieldQuota - Math.min(used, position.yieldQuota));
+        const changed = user.principal !== position.principal || user.battery !== position.yieldQuota || user.remaining !== remaining;
+        user.principal = position.principal;
+        user.battery = position.yieldQuota;
+        user.advance = position.yieldQuota;
+        user.remaining = remaining;
+        user.walletAddress = wallet;
+        if (changed && isSupabaseConfigured()) {
+          const supabase = getSupabase();
+          if (supabase) {
+            await supabase.from('untouched_users').upsert({
+              id: wallet,
+              wallet_address: wallet,
+              display_name: user.displayName || `User ${wallet.slice(0, 6)}`,
+              agent_signer_eoa: user.agentSigner,
+              principal_usdc: user.principal,
+              yield_battery_usdc: user.battery,
+              remaining_usdc: user.remaining,
+              last_activity: new Date().toISOString(),
+              deposit_timestamp: user.depositTimestamp || Date.now(),
+              max_per_call_usdc: user.maxPerCallUsdc || 5000,
+            }, { onConflict: 'id' });
+          }
+        }
+      } catch (chainError) {
+        console.warn('[API] /vault/status chain read skipped', chainError);
+      }
     }
 
     const receipts = getReceipts(apiKey);

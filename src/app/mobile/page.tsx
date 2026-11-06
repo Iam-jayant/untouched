@@ -17,10 +17,12 @@ export default function MobilePage() {
     refreshStatus,
     updateUserState,
   } = useAppState();
+  const [ready, setReady] = useState(false);
   const [maxPerCall, setMaxPerCall] = useState(0.005);
   const [busy, setBusy] = useState<'stake' | 'withdraw' | null>(null);
 
   useEffect(() => {
+    setReady(true);
     const params = new URLSearchParams(window.location.search);
     const urlApiKey = params.get('apiKey');
     if (urlApiKey) {
@@ -130,10 +132,10 @@ export default function MobilePage() {
       {!walletAddress ? (
         <button
           onClick={connectWallet}
-          disabled={walletStatus === 'reconnecting'}
+          disabled={ready && walletStatus === 'reconnecting'}
           className="w-full mb-4 py-3 rounded bg-orange-500 text-white font-medium disabled:opacity-70"
         >
-          {walletStatus === 'reconnecting' ? 'Restoring wallet…' : 'Connect Wallet'}
+          {ready && walletStatus === 'reconnecting' ? 'Restoring wallet…' : 'Connect Wallet'}
         </button>
       ) : (
         <div className="mb-4 px-3 py-2 border border-emerald-500/30 rounded text-xs font-mono text-emerald-300">
