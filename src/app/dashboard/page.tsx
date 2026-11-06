@@ -2,10 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAppState } from '@/components/providers/AppStateProvider';
-import Link from 'next/link';
 import { APIKeyManager } from '@/components/dashboard/APIKeyManager';
-import { ExecutionTracePanel } from '@/components/dashboard/ExecutionTracePanel';
-import type { ExecutionTrace } from '@/lib/infrgate';
+import { AppHeader } from '@/components/dashboard/AppHeader';
 import { toast } from 'sonner';
 import {
   Shield,
@@ -16,20 +14,11 @@ import {
   Smartphone,
   Terminal,
   Sparkles,
-  Search,
-  Palette,
-  TrendingUp,
-  DollarSign,
   Lock,
-  Activity,
-  Clock,
-  AlertCircle,
   CheckCircle,
   XCircle,
   Code2,
-  Cpu,
   Database,
-  ArrowRight,
   ExternalLink,
 } from 'lucide-react';
 
@@ -49,104 +38,14 @@ export default function DashboardPage() {
     updateUserState,
     setApiKey,
   } = useAppState();
-  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
-  const [prompt, setPrompt] = useState('');
-  const [response, setResponse] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isWaitingStepUp, setIsWaitingStepUp] = useState(false);
   const [showPairModal, setShowPairModal] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const [executionTrace, setExecutionTrace] = useState<ExecutionTrace | null>(null);
-  const [selectedReceiptTrace, setSelectedReceiptTrace] = useState<ExecutionTrace | null>(null);
-  const [lastPrompt, setLastPrompt] = useState<{ model: string; prompt: string } | null>(null);
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
-
-  const yieldModels = [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', cost: '$1 / 1M' },
-    { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', cost: '$1 / 1M' },
-    { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B', cost: '$1 / 1M' },
-    { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1', cost: '$1 / 1M' },
-  ];
-
-  const lockedModels = [
-    { id: 'anthropic/claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
-    { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus' },
-    { id: 'gpt-4o', name: 'GPT-4o' },
-    { id: 'o1', name: 'o1' },
-  ];
-
-  const arcTools = [
-    { id: 'web-search', name: 'Web Search', icon: Search },
-    { id: 'creative', name: 'Creative', icon: Palette },
-    { id: 'predictions', name: 'Predictions', icon: TrendingUp },
-    { id: 'financial', name: 'Financial', icon: DollarSign },
-  ];
-
-  const handleSendPrompt = async (useIdempotencyKey = false) => {
-    if (!prompt.trim()) return;
-    setIsLoading(true);
-    setResponse('');
-    setIsWaitingStepUp(false);
-
-    // Save last prompt for replay
-    setLastPrompt({ model: selectedModel, prompt });
-
-    try {
-      const headers: Record<string, string> = {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      };
-
-      // Add Idempotency-Key header if replaying
-      if (useIdempotencyKey) {
-        headers['Idempotency-Key'] = `replay-${Date.now()}`;
-      }
-
-      const res = await fetch('/api/v1/chat/completions', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ model: selectedModel, messages: [{ role: 'user', content: prompt }] }),
-      });
-
-      if (res.status === 402) { setIsWaitingStepUp(true); return; }
-      if (res.status === 403) { 
-        const data = await res.json();
-        setResponse('❌ Request blocked by spend policy'); 
-        if (data.executionTrace) {
-          setExecutionTrace(data.executionTrace);
-        }
-        setIsLoading(false); 
-        return; 
-      }
-      if (!res.ok) { const error = await res.json(); setResponse(`Error: ${error.error || 'Request failed'}`); setIsLoading(false); return; }
-
-      const data = await res.json();
-      setResponse(data.choices[0]?.message?.content || 'No response');
-      
-      // Store execution trace if present
-      if (data.executionTrace) {
-        setExecutionTrace(data.executionTrace);
-        setSelectedReceiptTrace(null); // Clear receipt selection when new trace arrives
-      }
-    } catch (error) {
-      setResponse(`Error: ${(error as Error).message}`);
-    } finally {
-      setIsLoading(false);
-      setIsWaitingStepUp(false);
-    }
-  };
-
-  const handleReplayLastPrompt = () => {
-    if (!lastPrompt) return;
-    setSelectedModel(lastPrompt.model);
-    setPrompt(lastPrompt.prompt);
-    handleSendPrompt(true);
-  };
 
   const handleDeposit = async (amount: number) => {
     if (!walletAddress) {
@@ -207,88 +106,16 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 border-b border-white/10 bg-black/80 backdrop-blur-xl">
-        <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
-          <div className="flex items-center justify-between h-20">
-            <Link href="/landing" className="flex items-center gap-3 group">
-              <span className="text-2xl font-display text-white group-hover:text-white/80 transition-colors duration-300">
-                UNTOUCHED
-              </span>
-              <span className="hidden md:flex items-center gap-2 text-xs text-white/40 font-mono uppercase tracking-wider border-l border-white/10 pl-3">
-                <Terminal className="w-3 h-3" />
-                Developer Dashboard
-              </span>
-            </Link>
-
-            <div className="flex items-center gap-4">
-              {/* Wallet Connection */}
-              {!walletAddress ? (
-                <button
-                  onClick={connectWallet}
-                  disabled={walletStatus === 'reconnecting'}
-                  className="group flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded font-medium text-sm transition-all duration-300 shadow-lg hover:shadow-orange-500/50 disabled:opacity-70"
-                >
-                  <span>{walletStatus === 'reconnecting' ? 'Restoring wallet…' : 'Connect Wallet'}</span>
-                </button>
-              ) : (
-                <div className="flex items-center gap-3">
-                  {/* Connected Wallet Badge */}
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-emerald-500/10 to-emerald-600/10 border border-emerald-500/30 rounded">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-xs font-mono text-emerald-300">
-                      {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-                    </span>
-                  </div>
-                  {/* Agent Signer Badge */}
-                  {userState?.agentSigner && (
-                    <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded">
-                      <Terminal className="w-3 h-3 text-white/60" />
-                      <span className="text-xs font-mono text-white/60">
-                        Agent: {userState.agentSigner.slice(0, 6)}...
-                      </span>
-                    </div>
-                  )}
-                  <button
-                    onClick={disconnectWallet}
-                    className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/20 text-white/70 hover:text-white rounded text-sm transition-colors"
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              )}
-
-              <div className="hidden lg:flex items-center gap-3">
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded hover:bg-white/10 transition-colors">
-                  <Shield className="w-3.5 h-3.5 text-white/60" />
-                  <span className="text-xs font-mono text-white/60">
-                    <span className="text-white font-medium">${((userState?.principal || 0) / 1_000000).toFixed(2)}</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded hover:bg-white/10 transition-colors">
-                  <Zap className="w-3.5 h-3.5 text-white/60" />
-                  <span className="text-xs font-mono text-white/60">
-                    <span className="text-white font-medium">${((userState?.remaining || 0) / 1_000000).toFixed(4)}</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded">
-                  <div className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
-                  <span className="text-xs font-mono text-white/60">{connected ? 'Live' : 'Offline'}</span>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowPairModal(true)}
-                className="group flex items-center gap-2 px-4 py-2 bg-white text-black hover:bg-white/90 rounded font-medium text-sm transition-all duration-300 hover:gap-3 btn-shimmer"
-              >
-                <Smartphone className="w-4 h-4" />
-                <span className="hidden md:inline">Pair Mobile</span>
-                <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <AppHeader
+        active="dashboard"
+        walletAddress={walletAddress}
+        walletStatus={walletStatus}
+        connected={connected}
+        userState={userState}
+        onConnect={connectWallet}
+        onDisconnect={disconnectWallet}
+        onPair={() => setShowPairModal(true)}
+      />
 
       {/* Hero Stats Bar OR Connect Wallet Prompt */}
       <section className="border-b border-white/10 bg-gradient-to-b from-black to-black/95">
@@ -500,145 +327,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Center - Playground */}
-          <div className="lg:col-span-5">
-            <div className="slide-up" style={{ animationDelay: '0.4s' }}>
-              <div className="relative group">
-                <div className="absolute -inset-[1px] bg-gradient-to-r from-white/10 to-white/0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <div className="relative bg-black/50 border border-white/10 rounded-lg p-6 backdrop-blur-sm">
-                  <div className="flex items-center gap-2 mb-6">
-                    <Cpu className="w-5 h-5 text-white/60" />
-                    <h3 className="text-lg font-medium">AI Playground</h3>
-                  </div>
-
-                  {/* Model Selector */}
-                  <div className="mb-5">
-                    <label className="flex items-center gap-2 text-xs text-white/50 font-mono uppercase tracking-wider mb-2">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Model Selection
-                    </label>
-                    <select
-                      value={selectedModel}
-                      onChange={(e) => {
-                        const next = yieldModels.find((model) => model.id === e.target.value);
-                        if (next) setSelectedModel(e.target.value);
-                      }}
-                      className="w-full bg-black/60 backdrop-blur-md border border-white/20 rounded px-3 py-2.5 text-sm text-white focus:border-white/40 focus:bg-black/70 transition-all cursor-pointer shadow-lg"
-                    >
-                      <optgroup label="Yield battery — $1 per 1M tokens">
-                        {yieldModels.map((m) => (
-                          <option key={m.id} value={m.id} className="bg-black/95 text-white py-2">
-                            {m.name} ({m.cost})
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Locked — Protects the yield battery">
-                        {lockedModels.map((m) => (
-                          <option key={m.id} value={m.id} disabled className="bg-black/95 text-white/40 py-2">
-                            {m.name} — Locked
-                          </option>
-                        ))}
-                      </optgroup>
-                    </select>
-                    <p className="mt-2 text-xs text-white/50">Upstream API paid by Untouched. Principal untouched.</p>
-                  </div>
-
-                  {/* Arc Tools */}
-                  <div className="mb-5 pb-5 border-b border-white/10">
-                    <label className="flex items-center gap-2 text-xs text-white/50 font-mono uppercase tracking-wider mb-3">
-                      <Activity className="w-3.5 h-3.5" />
-                      Arc Marketplace MCP Tools
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {arcTools.map((tool, i) => {
-                        const Icon = tool.icon;
-                        return (
-                          <button
-                            key={tool.id}
-                            className="group relative flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded text-xs font-medium transition-all duration-300 overflow-hidden"
-                            style={{ animationDelay: `${i * 0.05}s` }}
-                          >
-                            <Icon className="w-3.5 h-3.5 text-white/60 group-hover:text-white/80 group-hover:scale-110 transition-all" />
-                            <span className="text-white/70 group-hover:text-white transition-colors">{tool.name}</span>
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Prompt */}
-                  <div className="mb-4">
-                    <textarea
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="Enter your prompt..."
-                      className="w-full h-32 bg-white/5 border border-white/10 rounded px-4 py-3 text-sm resize-none focus:border-white/30 focus:bg-white/10 transition-all placeholder:text-white/30"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => handleSendPrompt(false)}
-                      disabled={isLoading || !prompt.trim()}
-                      className="group w-full flex items-center justify-center gap-2 px-4 py-3 bg-white text-black hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed rounded font-medium transition-all duration-300 hover:gap-3 btn-shimmer overflow-hidden relative"
-                    >
-                      {isLoading ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                          <span>Sending...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4" />
-                          <span>Send Prompt</span>
-                          <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </>
-                      )}
-                    </button>
-
-                    {lastPrompt && (
-                      <button
-                        onClick={handleReplayLastPrompt}
-                        disabled={isLoading}
-                        className="group w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed rounded font-medium text-sm transition-all duration-300 hover:gap-3 overflow-hidden relative"
-                      >
-                        <span className="text-lg">🔁</span>
-                        <span>Replay Last Prompt (Idempotency $0.00)</span>
-                        <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Step-Up Warning */}
-                  {isWaitingStepUp && (
-                    <div className="mt-4 flex items-start gap-3 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded">
-                      <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-sm font-medium text-red-400 mb-1">Blocked by Autonomous Policy</div>
-                        <div className="text-xs text-white/60">Request exceeds spend limit. Adjust settings or use a lighter model.</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Response */}
-                  {response && (
-                    <div className="mt-4 p-4 bg-white/5 border border-white/10 rounded slide-up">
-                      <div className="text-sm text-white/80 whitespace-pre-wrap font-mono leading-relaxed">{response}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Top - Execution Trace */}
-          <div className="lg:col-span-4 space-y-6">
-            <div className="slide-up" style={{ animationDelay: '0.4s' }}>
-              <ExecutionTracePanel trace={executionTrace || selectedReceiptTrace} />
-            </div>
-
-            {/* Right Bottom - Receipts */}
+          <div className="lg:col-span-8">
             <div className="slide-up" style={{ animationDelay: '0.5s' }}>
               <div className="sticky top-24 relative group">
                 <div className="absolute -inset-[1px] bg-gradient-to-r from-white/10 to-white/0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -678,24 +367,13 @@ export default function DashboardPage() {
 
                     {receipts.map((receipt, i) => {
                       const isBlocked = receipt.provider === 'blocked';
-                      const isHeavy = receipt.costUSDC > 10000;
                       return (
                         <div
                           key={receipt.id}
-                          onClick={() => {
-                            if (receipt.executionTrace) {
-                              setSelectedReceiptTrace(receipt.executionTrace);
-                              setExecutionTrace(null); // Clear live trace when viewing receipt
-                            }
-                          }}
-                          className={`group p-3 rounded border transition-all duration-300 hover-lift cursor-pointer ${
-                            isBlocked 
-                              ? 'bg-red-500/10 border-red-500/30' 
-                              : 'bg-white/5 border-white/10 hover:border-white/20'
-                          } ${
-                            selectedReceiptTrace?.requestId === receipt.id
-                              ? 'ring-2 ring-white/30'
-                              : ''
+                          className={`group p-3 rounded border transition-all duration-300 ${
+                            isBlocked
+                              ? 'bg-red-500/10 border-red-500/30'
+                              : 'bg-white/5 border-white/10'
                           }`}
                           style={{ animationDelay: `${i * 0.05}s` }}
                         >
