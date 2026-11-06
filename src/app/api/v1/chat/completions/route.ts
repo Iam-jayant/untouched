@@ -6,7 +6,7 @@
  * 1. AUTH - Verify API key & resolve tenant vault
  * 2. RATE_LIMIT - Token bucket rate limiting (60 RPM)
  * 3. IDEMPOTENCY - SHA-256 request fingerprint cache check
- * 4. POLICY - Spend policy + World ID Agent Pass gate (G3)
+ * 4. POLICY - Per-call limit and yield battery
  * 5. ROUTING - Provider health ranking & circuit breaker
  * 6. FINALIZE - x402 nanopayment signing & battery deduction
  */
@@ -18,11 +18,9 @@ import {
   getUser, 
   updateUserBalance, 
   addReceipt, 
-  getPendingApprovals,
-  checkApprovalStatusInSupabase 
 } from '@/lib/agent-store';
-import { broadcastReceipt, broadcastBalanceUpdate, broadcastPendingApproval } from '@/lib/sse';
-import { getFreeTierCascade, MODELS, resolveModel } from '@/lib/constants';
+import { broadcastReceipt, broadcastBalanceUpdate } from '@/lib/sse';
+import { getFreeTierCascade, resolveModel } from '@/lib/constants';
 import { callLLM } from '@/lib/llm-proxy';
 import { signNanopayment } from '@/lib/nanopayments';
 import {
@@ -146,7 +144,7 @@ export async function POST(req: NextRequest) {
     if (!policy.allowed) {
       // Handle blocked by policy
       if (policy.action === 'blocked_by_policy') {
-        // INSTANT BLOCK - no World ID, no HTTP hold, 0ms
+        // Instant block. Nothing is spent.
         trace.fail(policy.reason || 'Blocked by spend policy');
         
         // Mark remaining steps as skipped

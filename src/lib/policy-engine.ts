@@ -2,7 +2,7 @@
  * Autonomous Spend Policy Engine
  * Enforces per-call USDC limit & yield battery quota
  * 
- * 100% Deterministic - No World ID, No Mobile Approval, No HTTP Holds
+ * Decisions are immediate. Over-limit calls are rejected and nothing is spent.
  * 
  * Logic:
  * - If estimatedCostUSDC <= user.maxPerCallUsdc AND <= user.remaining → ALLOW

@@ -76,7 +76,7 @@ export interface PendingApproval {
   timestamp: number;
   model: string;
   estimatedCostUSDC: number; // 6-decimal
-  requiredAction: 'step_up_auth' | 'deposit_more';
+  requiredAction: 'deposit_more';
   promptPreview: string; // first 200 chars
   resolver?: (decision: 'approved' | 'blocked') => void; // G3: Promise resolver
 }
@@ -183,24 +183,7 @@ export type SSEEvent =
   | { type: 'balance_update'; data: { remaining: number; principal?: number; battery?: number; advance?: number } }
   | { type: 'deposit_confirmed'; data: { principal: number; battery: number; remaining: number; advance: number } }
   | { type: 'pending_approval'; data: PendingApproval }
-  | { type: 'step_up_approved'; data: { approvalId: string } }
-  | { type: 'step_up_denied'; data: { approvalId: string } }
   | { type: 'heartbeat'; data: { timestamp: number } };
-
-// ============================================================================
-// Step-Up Decision (World ID verification)
-// ============================================================================
-
-export interface StepUpDecision {
-  approvalId: string;
-  action: 'approve' | 'deny';
-  proof?: {
-    merkle_root: string;
-    nullifier_hash: string;
-    proof: string;
-    verification_level: string;
-  };
-}
 
 // ============================================================================
 // Vault API

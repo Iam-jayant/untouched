@@ -130,7 +130,7 @@ export const FREE_TIER_MODELS: ModelConfig[] = [
 ];
 
 /**
- * Heavy/premium models (require step-up auth or sufficient battery):
+ * Heavy models. A single call can exceed the default per-call cap.
  */
 export const PREMIUM_MODELS: ModelConfig[] = [
   {
@@ -163,8 +163,8 @@ export const MODELS = new Map<string, ModelConfig>(
 
 /**
  * Map flexible model names to standard models
- * Heavy models (triggers World ID): $0.020
- * Routine models (auto-approve): $0.001
+ * Routine models: $1 per 1M tokens
+ * Heavy models: $20 per 1M tokens
  */
 export function resolveModel(modelName: string): ModelConfig {
   // Check exact match first
@@ -173,7 +173,7 @@ export function resolveModel(modelName: string): ModelConfig {
 
   const lowerName = modelName.toLowerCase();
 
-  // Heavy models - all map to $0.020 (triggers Mobile World ID)
+  // Heavy models map to $20 per 1M tokens
   const heavyPatterns = [
     'opus', 'o1', 'o3', 'o3-pro', 'o3-mini', 
     'claude-3-opus', 'claude-opus', 

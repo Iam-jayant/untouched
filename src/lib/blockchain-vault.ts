@@ -29,10 +29,10 @@ console.log('[Blockchain] Config loaded:', {
 
 // Vault ABI - inline to avoid import issues
 const VAULT_ABI = [
-  'function depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 worldIdNullifier)',
+  'function depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 nullifier)',
   'function withdrawPrincipal()',
-  'function positions(address) view returns (uint256 principalUsdc, uint256 shares, uint256 maxPerCallUsdc, address agentSignerEOA, uint256 unpaidAdvanceUsdc, bytes32 worldIdNullifier)',
-  'event DepositWithAdvance(address indexed user, uint256 principalUsdc, uint256 advanceUsdc, uint256 shares, address agentSignerEOA, bytes32 worldIdNullifier)',
+  'function positions(address) view returns (uint256 principalUsdc, uint256 shares, uint256 maxPerCallUsdc, address agentSignerEOA, uint256 unpaidAdvanceUsdc, bytes32 nullifier)',
+  'event DepositWithAdvance(address indexed user, uint256 principalUsdc, uint256 advanceUsdc, uint256 shares, address agentSignerEOA, bytes32 nullifier)',
   'event PrincipalWithdrawn(address indexed user, uint256 payoutUsdc, uint256 unpaidShortfallUsdc)',
 ];
 
@@ -218,8 +218,8 @@ export async function depositToVault(
   // Use provided agent signer or default
   const agentEOA = agentSignerEOA || AGENT_SIGNER_EOA;
   
-  // Generate random World ID nullifier (ALWAYS fresh to avoid duplicate nullifier reverts!)
-  const worldIdNullifier = ethers.utils.hexlify(ethers.utils.randomBytes(32));
+  // Fresh nullifier. The vault rejects a zero or previously used value.
+  const nullifier = ethers.utils.hexlify(ethers.utils.randomBytes(32));
   
   try {
     // Estimate gas first
@@ -228,7 +228,7 @@ export async function depositToVault(
     const gasEstimate = await vaultContract.estimateGas.depositWithCreditAdvance(
       amountInWei,
       agentEOA,
-      worldIdNullifier
+      nullifier
     );
     
     // Add 20% buffer
@@ -240,7 +240,7 @@ export async function depositToVault(
     const tx = await vaultContract.depositWithCreditAdvance(
       amountInWei,
       agentEOA,
-      worldIdNullifier,
+      nullifier,
       { gasLimit }
     );
     

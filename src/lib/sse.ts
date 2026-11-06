@@ -176,13 +176,3 @@ export function broadcastPendingApproval(apiKey: string, approval: any): void {
   const sse = getSSE();
   sse.broadcast(apiKey, { type: 'pending_approval', data: approval });
 }
-
-export function broadcastStepUpApproved(apiKey: string, approvalId: string): void {
-  const sse = getSSE();
-  sse.broadcast(apiKey, { type: 'step_up_approved', data: { approvalId } });
-}
-
-export function broadcastStepUpDenied(apiKey: string, approvalId: string): void {
-  const sse = getSSE();
-  sse.broadcast(apiKey, { type: 'step_up_denied', data: { approvalId } });
-}
