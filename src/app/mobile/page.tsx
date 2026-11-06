@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react';
 import { useAppState } from '@/components/providers/AppStateProvider';
 
 export default function MobilePage() {
-  const { userState, receipts, connected, apiKey, setApiKey, refreshStatus, updateUserState } = useAppState();
+  const { userState, receipts, connected, apiKey, walletAddress, setApiKey, refreshStatus, updateUserState } = useAppState();
   const [maxPerCall, setMaxPerCall] = useState(0.005); // Default $0.005
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
@@ -62,47 +62,27 @@ export default function MobilePage() {
     }
 
     try {
-      // Step 1: Import Web3 module
       const { signAndExecuteDeposit } = await import('@/lib/web3-vault');
-      
-      // Step 2: Request wallet signature (will pop up MetaMask/Rabby/etc)
-      console.log(`[Mobile] Requesting signature for $${amount} deposit...`);
-      const { signature, message, walletAddress: signer } = await signAndExecuteDeposit(amount);
-      
-      console.log('[Mobile] Signature received, submitting to backend...');
-
-      // Step 3: Submit to backend with signature
+      const result = await signAndExecuteDeposit(amount);
       const response = await fetch('/api/vault/deposit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          apiKey,
-          amountUsdc: amount * 1_000000,
-          signature,
-          message,
-          walletAddress: signer,
-        }),
+        body: JSON.stringify({ apiKey, walletAddress, txHash: result.txHash }),
       });
-
+      const data = await response.json();
       if (!response.ok) {
-        const error = await response.json();
-        alert(`Deposit failed: ${error.error || error.message || 'Unknown error'}`);
+        alert(`Deposit failed: ${data.error || 'Unknown error'}`);
         return;
       }
-
-      const result = await response.json();
       if (updateUserState) {
         updateUserState({
-          principal: result.principal,
-          battery: result.battery,
-          remaining: result.remaining,
-          advance: result.advance,
+          principal: data.principal,
+          battery: data.battery,
+          remaining: data.remaining,
+          advance: data.advance,
         });
       }
-      if (refreshStatus) {
-        refreshStatus().catch(console.warn);
-      }
-      alert(`✅ Successfully staked $${amount}!\n\nSignature: ${signature.slice(0, 20)}...`);
+      alert(`Staked $${amount}.\n${result.explorerUrl}`);
     } catch (err: any) {
       console.error('Deposit error:', err);
       
@@ -136,31 +116,15 @@ export default function MobilePage() {
 
     setIsWithdrawing(true);
     try {
-      // Step 1: Calculate yield forfeited
-      const proportionalYield = (amount / principal) * (battery - remaining);
-      
-      // Step 2: Import Web3 module
       const { signAndExecuteWithdrawal } = await import('@/lib/web3-vault');
-      
-      // Step 3: Request wallet signature
-      console.log(`[Mobile] Requesting signature for $${amount} withdrawal...`);
-      const { signature, message, walletAddress: signer } = await signAndExecuteWithdrawal(
-        amount,
-        proportionalYield / 1_000000
-      );
-      
-      console.log('[Mobile] Withdrawal signature received');
-
-      // Step 4: Submit to backend
+      const result = await signAndExecuteWithdrawal();
       const response = await fetch('/api/vault/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           apiKey,
-          amountUsdc: amount * 1_000000,
-          signature,
-          message,
-          walletAddress: signer,
+          walletAddress: result.walletAddress,
+          txHash: result.txHash,
         }),
       });
 
@@ -170,7 +134,7 @@ export default function MobilePage() {
         return;
       }
 
-      const result = await response.json();
+      const settled = await response.json();
       if (updateUserState) {
         updateUserState({
           principal: 0,
@@ -182,7 +146,7 @@ export default function MobilePage() {
       if (refreshStatus) {
         refreshStatus().catch(console.warn);
       }
-      alert(`✅ Withdrawal successful!\nPrincipal returned: $${result.returnedPrincipalUSDC ? (result.returnedPrincipalUSDC / 1_000000).toFixed(2) : '0.00'}\n\nTx: ${result.txHash ? result.txHash.slice(0, 16) + '...' : ''}`);
+      alert(`Withdrawal sent.\nPayout: $${((settled.payout6Dec || 0) / 1_000000).toFixed(2)}\n${result.explorerUrl}`);
       setWithdrawAmount('');
     } catch (err: any) {
       console.error('Withdraw error:', err);

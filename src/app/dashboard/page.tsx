@@ -26,7 +26,6 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
-  FastForward,
   Code2,
   Cpu,
   Database,
@@ -41,14 +40,16 @@ export default function DashboardPage() {
     pendingApproval, 
     connected, 
     apiKey, 
-    walletAddress, 
+    walletAddress,
+    walletStatus,
     connectWallet, 
     connectDemoWallet, 
     disconnectWallet,
     refreshStatus,
-    updateUserState 
+    updateUserState,
+    setApiKey,
   } = useAppState();
-  const [selectedModel, setSelectedModel] = useState('gpt-4o-mini');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
   const [prompt, setPrompt] = useState('');
   const [response, setResponse] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -65,17 +66,18 @@ export default function DashboardPage() {
     setIsVisible(true);
   }, []);
 
-  const routineModels = [
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', cost: '$0.001', provider: 'OpenAI' },
-    { id: 'anthropic/claude-3-5-haiku', name: 'Claude 3.5 Haiku', cost: '$0.001', provider: 'Anthropic' },
-    { id: 'deepseek/deepseek-chat', name: 'DeepSeek V3', cost: '$0.001', provider: 'DeepSeek' },
-    { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B', cost: '$0.001', provider: 'Meta' },
-    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash', cost: '$0.001', provider: 'Google' },
+  const yieldModels = [
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', cost: '$1 / 1M' },
+    { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', cost: '$1 / 1M' },
+    { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B', cost: '$1 / 1M' },
+    { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1', cost: '$1 / 1M' },
   ];
 
-  const heavyModels = [
-    { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus', cost: '$0.020', provider: 'Anthropic' },
-    { id: 'openai/o3-pro', name: 'OpenAI o3-pro', cost: '$0.020', provider: 'OpenAI' },
+  const lockedModels = [
+    { id: 'anthropic/claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
+    { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus' },
+    { id: 'gpt-4o', name: 'GPT-4o' },
+    { id: 'o1', name: 'o1' },
   ];
 
   const arcTools = [
@@ -143,111 +145,49 @@ export default function DashboardPage() {
     if (!lastPrompt) return;
     setSelectedModel(lastPrompt.model);
     setPrompt(lastPrompt.prompt);
-    handleSendPrompt(true); // Use idempotency key
-  };
-
-  const handleSimulate14Days = async () => {
-    try {
-      const res = await fetch('/api/vault/simulate', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        alert(`✅ ${data.message}\n\nBattery Replenished: $${(data.batteryReplenished / 1_000000).toFixed(6)}\nUSYC NAV: $${data.usycNavBefore.toFixed(8)} → $${data.usycNavAfter.toFixed(8)}`);
-      }
-    } catch (error) {
-      console.error('Simulation error:', error);
-    }
+    handleSendPrompt(true);
   };
 
   const handleDeposit = async (amount: number) => {
-    if (!apiKey || !walletAddress) {
+    if (!walletAddress) {
       toast.error('Please connect your wallet first');
       return;
     }
-    
-    const toastId = toast.loading('Preparing deposit...');
-    
+
+    const toastId = toast.loading('Confirm the USDC stake in MetaMask...');
+
     try {
-      // Import blockchain module
-      const { executeCompleteDeposit } = await import('@/lib/blockchain-vault');
-      
-      // Execute real blockchain deposit (approval + deposit)
-      toast.loading('✍️ Approve USDC in your wallet...', { id: toastId });
-      console.log(`[Dashboard] Executing on-chain deposit for $${amount}...`);
-      
-      const result = await executeCompleteDeposit(amount);
-      
-      toast.loading('⏳ Confirming transaction...', { id: toastId });
-      
-      console.log('[Dashboard] Deposit confirmed on-chain:', result);
-      
-      // Update backend with on-chain transaction details
-      toast.loading('💾 Syncing to backend...', { id: toastId });
-      
+      const { signAndExecuteDeposit } = await import('@/lib/web3-vault');
+      const result = await signAndExecuteDeposit(amount);
+      toast.loading('Syncing the confirmed stake...', { id: toastId });
+
       const response = await fetch('/api/vault/deposit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          apiKey: apiKey || walletAddress, // Fallback to wallet address if apiKey not set
-          walletAddress, // Include wallet address for auto-creation if needed
-          amountUsdc: amount * 1_000000,
-          txHash: result.depositTxHash,
-          blockNumber: result.blockNumber,
-          principalUsdc: result.principalUsdc,
-          advanceUsdc: result.advanceUsdc,
-          onChain: true,
+          apiKey,
+          walletAddress,
+          txHash: result.txHash,
         }),
       });
-      
-      if (response.ok) {
-        const depositData = await response.json();
-        updateUserState({
-          principal: depositData.principal,
-          battery: depositData.battery,
-          remaining: depositData.remaining,
-          advance: depositData.advance,
-        });
-      } else {
-        const error = await response.json();
-        console.warn('[Dashboard] Backend sync failed:', error);
-        const pMicro = Math.floor(parseFloat(result.principalUsdc || '0') * 1_000000);
-        const aMicro = Math.floor(parseFloat(result.advanceUsdc || '0') * 1_000000);
-        updateUserState({
-          principal: pMicro,
-          battery: aMicro,
-          remaining: aMicro,
-          advance: aMicro,
-        });
+      const depositData = await response.json();
+      if (!response.ok) {
+        throw new Error(depositData.error || 'Stake sync failed');
       }
-      
-      // Trigger background status refresh
-      refreshStatus().catch(console.warn);
-      
-      // Success!
-      toast.success(
-        `Deposit successful!\n\n💰 Deposited: $${amount}\n📊 Principal: $${result.principalUsdc}\n⚡ Advance: $${result.advanceUsdc}\n\n🔗 Tx: ${result.depositTxHash.slice(0, 12)}...`,
-        { id: toastId, duration: 6000 }
-      );
-    } catch (err: any) {
-      console.error('Deposit error:', err);
-      
-      // User-friendly error messages with toast
-      if (err.message && err.message.includes('rejected')) {
-        toast.error('Transaction cancelled', { id: toastId });
-      } else if (err.message && err.message.includes('insufficient funds')) {
-        toast.error('Insufficient USDC or ARC for gas', { id: toastId, duration: 5000 });
-      } else if (err.message && err.message.includes('gas')) {
-        toast.error('Gas estimation failed - check if you have enough USDC approved', { id: toastId, duration: 5000 });
-      } else {
-        toast.error(`Deposit failed: ${err.message}`, { id: toastId, duration: 5000 });
+      if (depositData.apiKey) {
+        setApiKey(depositData.apiKey);
+        localStorage.setItem('untouched_api_key', depositData.apiKey);
       }
+      updateUserState({
+        principal: depositData.principal,
+        battery: depositData.battery,
+        remaining: depositData.remaining,
+        advance: depositData.advance,
+      });
+      toast.success(`Staked $${amount}. Yield battery unlocked.`, { id: toastId });
+      toast.message(result.explorerUrl);
+    } catch (error) {
+      toast.error((error as Error).message || 'Deposit failed', { id: toastId });
     }
   };
 
@@ -286,10 +226,10 @@ export default function DashboardPage() {
               {!walletAddress ? (
                 <button
                   onClick={connectWallet}
-                  className="group flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded font-medium text-sm transition-all duration-300 shadow-lg hover:shadow-orange-500/50"
+                  disabled={walletStatus === 'reconnecting'}
+                  className="group flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded font-medium text-sm transition-all duration-300 shadow-lg hover:shadow-orange-500/50 disabled:opacity-70"
                 >
-                  <span className="text-lg">🦊</span>
-                  <span>Connect Wallet to Start</span>
+                  <span>{walletStatus === 'reconnecting' ? 'Restoring wallet…' : 'Connect Wallet'}</span>
                 </button>
               ) : (
                 <div className="flex items-center gap-3">
@@ -365,10 +305,10 @@ export default function DashboardPage() {
               </p>
               <button
                 onClick={connectWallet}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all duration-300 shadow-lg hover:shadow-orange-500/50"
+                disabled={walletStatus === 'reconnecting'}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all duration-300 shadow-lg hover:shadow-orange-500/50 disabled:opacity-70"
               >
-                <span className="text-lg">🦊</span>
-                <span>Connect Wallet</span>
+                <span>{walletStatus === 'reconnecting' ? 'Restoring wallet…' : 'Connect Wallet'}</span>
               </button>
             </div>
           ) : (
@@ -551,25 +491,11 @@ export default function DashboardPage() {
 
             {/* Time Simulator */}
             <div className="slide-up" style={{ animationDelay: '0.3s' }}>
-              <div className="relative group">
-                <div className="absolute -inset-[1px] bg-gradient-to-r from-white/10 to-white/0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <div className="relative bg-black/50 border border-white/10 rounded-lg p-6 backdrop-blur-sm">
-                  <div className="flex items-center gap-2 mb-4">
-                    <FastForward className="w-5 h-5 text-white/60" />
-                    <h3 className="text-lg font-medium">Time Simulator</h3>
-                  </div>
-                  <button
-                    onClick={handleSimulate14Days}
-                    className="group w-full flex items-center justify-center gap-2 px-4 py-3 bg-white text-black hover:bg-white/90 rounded font-medium transition-all duration-300 hover:gap-3 btn-shimmer overflow-hidden relative"
-                  >
-                    <Clock className="w-4 h-4" />
-                    <span>Fast-Forward 14 Days</span>
-                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                  <div className="mt-3 text-xs text-white/50 text-center">
-                    Simulates USYC yield + Chainlink CRE reconciliation
-                  </div>
-                </div>
+              <div className="relative bg-black/50 border border-white/10 rounded-lg p-6 backdrop-blur-sm">
+                <h3 className="text-lg font-medium mb-2">Yield reconcile</h3>
+                <p className="text-sm text-white/60">
+                  Chainlink CRE reads this vault and official USYC every 6 hours, checks the gateway spend ledger, and repays used yield on-chain.
+                </p>
               </div>
             </div>
           </div>
@@ -593,24 +519,28 @@ export default function DashboardPage() {
                     </label>
                     <select
                       value={selectedModel}
-                      onChange={(e) => setSelectedModel(e.target.value)}
+                      onChange={(e) => {
+                        const next = yieldModels.find((model) => model.id === e.target.value);
+                        if (next) setSelectedModel(e.target.value);
+                      }}
                       className="w-full bg-black/60 backdrop-blur-md border border-white/20 rounded px-3 py-2.5 text-sm text-white focus:border-white/40 focus:bg-black/70 transition-all cursor-pointer shadow-lg"
                     >
-                      <optgroup label="Routine Tier ($0.001 — Auto-Approve)">
-                        {routineModels.map((m) => (
+                      <optgroup label="Yield battery — $1 per 1M tokens">
+                        {yieldModels.map((m) => (
                           <option key={m.id} value={m.id} className="bg-black/95 text-white py-2">
-                            {m.name} ({m.cost}) — {m.provider}
+                            {m.name} ({m.cost})
                           </option>
                         ))}
                       </optgroup>
-                      <optgroup label="Heavy Tier ($0.020 — Policy Block)">
-                        {heavyModels.map((m) => (
-                          <option key={m.id} value={m.id} className="bg-black/95 text-white py-2">
-                            {m.name} ({m.cost}) — {m.provider}
+                      <optgroup label="Locked — Protects the yield battery">
+                        {lockedModels.map((m) => (
+                          <option key={m.id} value={m.id} disabled className="bg-black/95 text-white/40 py-2">
+                            {m.name} — Locked
                           </option>
                         ))}
                       </optgroup>
                     </select>
+                    <p className="mt-2 text-xs text-white/50">Upstream API paid by Untouched. Principal untouched.</p>
                   </div>
 
                   {/* Arc Tools */}

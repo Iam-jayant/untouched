@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import "@/styles/globals.css";
-import { AppStateProvider } from "@/components/providers/AppStateProvider";
+import ClientProviders from "@/components/providers/ClientProviders";
 import { Toaster } from "sonner";
 
 const instrumentSans = Instrument_Sans({
@@ -55,7 +55,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased bg-[#090A0F] text-white" suppressHydrationWarning>
         <Toaster position="top-center" richColors expand={true} />
-        <AppStateProvider>{children}</AppStateProvider>
+        <ClientProviders>{children}</ClientProviders>
       </body>
     </html>
   );

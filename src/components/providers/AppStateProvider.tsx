@@ -5,8 +5,12 @@
  * Connects to SSE (/api/events) and syncs state across PC and Mobile
  */
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import type { UserState, Receipt, PendingApproval, SSEEvent } from '@/lib/types';
+import { useWeb3Modal } from '@web3modal/wagmi/react';
+import { useAccount, useDisconnect, useReconnect } from 'wagmi';
+import { getAccount } from '@wagmi/core';
+import { wagmiConfig } from '@/components/providers/Web3ModalProvider';
 
 interface AppState {
   userState: UserState | null;
@@ -15,6 +19,7 @@ interface AppState {
   connected: boolean;
   apiKey: string;
   walletAddress: string | null;
+  walletStatus: 'disconnected' | 'reconnecting' | 'connected';
   setApiKey: (key: string) => void;
   connectWallet: () => Promise<void>;
   connectDemoWallet: () => void;
@@ -40,15 +45,40 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [connected, setConnected] = useState(false);
+  const { open } = useWeb3Modal();
+  const { address: connectedAddress, status: accountStatus } = useAccount();
+  const { reconnect } = useReconnect();
+  const { disconnectAsync } = useDisconnect();
+  const accountStatusRef = useRef(accountStatus);
+  accountStatusRef.current = accountStatus;
+
+  // MetaMask announces after the first paint. Wagmi's first reconnect in dev
+  // often runs before that and then does not try again, so a refresh looks disconnected.
+  useEffect(() => {
+    let stopped = false;
+    const restore = () => {
+      if (stopped || accountStatusRef.current === 'connected') return;
+      void reconnect();
+    };
+    restore();
+    window.addEventListener('eip6963:announceProvider', restore);
+    window.addEventListener('ethereum#initialized', restore);
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
+    const retry = window.setTimeout(restore, 600);
+    return () => {
+      stopped = true;
+      window.removeEventListener('eip6963:announceProvider', restore);
+      window.removeEventListener('ethereum#initialized', restore);
+      window.clearTimeout(retry);
+    };
+  }, [reconnect]);
 
   // Load wallet, API key, and cached state from localStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedWallet = localStorage.getItem('untouched_wallet');
       const savedApiKey = localStorage.getItem('untouched_api_key');
       const cachedState = localStorage.getItem('untouched_cached_state');
       
-      if (savedWallet) setWalletAddress(savedWallet);
       if (savedApiKey) setApiKeyState(savedApiKey);
       if (cachedState) {
         try {
@@ -61,85 +91,41 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Connect wallet via MetaMask/Rabby/Rainbow
-  const connectWallet = async () => {
-    try {
-      if (typeof window === 'undefined' || !window.ethereum) {
-        alert('Please install MetaMask, Rabby, or another Web3 wallet!');
-        return;
-      }
-
-      // Request wallet connection
-      const accounts = await window.ethereum.request({ 
-        method: 'eth_requestAccounts' 
-      }) as string[];
-      
-      if (!accounts || accounts.length === 0) {
-        throw new Error('No accounts returned from wallet');
-      }
-
-      const walletAddr = accounts[0].toLowerCase();
-
-      // Try to switch to Arc Testnet (chainId: 0x4cef52 = 5042002)
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: '0x4cef52' }],
-        });
-      } catch (switchError: any) {
-        // Chain not added, add it
-        if (switchError.code === 4902) {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: '0x4cef52',
-              chainName: 'Arc Testnet',
-              nativeCurrency: {
-                name: 'Arc',
-                symbol: 'ARC',
-                decimals: 18,
-              },
-              rpcUrls: ['https://rpc.testnet.arc.network'],
-              blockExplorerUrls: ['https://explorer.testnet.arc.network'],
-            }],
-          });
-        }
-      }
-
-      // Call auth endpoint
-      const res = await fetch('/api/vault/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: walletAddr,
-          displayName: `User ${walletAddr.slice(0, 6)}`,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to authenticate wallet');
-      }
-
-      const data = await res.json();
-
-      // Save to localStorage
-      localStorage.setItem('untouched_wallet', walletAddr);
+  const authorizeWallet = async (address: string) => {
+    const walletAddr = address.toLowerCase();
+    const res = await fetch('/api/vault/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress: walletAddr,
+        displayName: `User ${walletAddr.slice(0, 6)}`,
+      }),
+    });
+    if (!res.ok) throw new Error('Failed to authenticate wallet');
+    const data = await res.json();
+    localStorage.setItem('untouched_wallet', walletAddr);
+    if (data.activeApiKey) {
       localStorage.setItem('untouched_api_key', data.activeApiKey);
-      if (data.user) {
-        localStorage.setItem('untouched_cached_state', JSON.stringify(data.user));
-      }
-
-      // Update state
-      setWalletAddress(walletAddr);
       setApiKeyState(data.activeApiKey);
-      setUserState(data.user);
-
-      console.log('[Wallet] Connected:', walletAddr);
-      console.log('[API Key] Active:', data.activeApiKey);
-    } catch (error) {
-      console.error('[Wallet] Connection failed:', error);
-      alert(`Failed to connect wallet: ${(error as Error).message}`);
     }
+    if (data.user) {
+      localStorage.setItem('untouched_cached_state', JSON.stringify(data.user));
+    }
+    setWalletAddress(walletAddr);
+    setUserState(data.user);
+    setConnected(true);
+  };
+
+  useEffect(() => {
+    if (!connectedAddress) return;
+    setWalletAddress(connectedAddress.toLowerCase());
+    authorizeWallet(connectedAddress).catch((error) => {
+      console.error('[Wallet] Auth failed:', error);
+    });
+  }, [connectedAddress]);
+
+  const connectWallet = async () => {
+    await open({ view: 'Connect' });
   };
 
   // Connect demo vault (deprecated - wallet required now)
@@ -149,6 +135,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   // Disconnect wallet
   const disconnectWallet = () => {
+    disconnectAsync().catch(() => undefined);
+    setConnected(false);
     setWalletAddress(null);
     setApiKeyState('');
     setUserState(null);
@@ -268,21 +256,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
             localStorage.setItem('untouched_cached_state', JSON.stringify(syncedState));
           }
           setConnected(true);
-
-          // Sync to backend in background
-          fetch('/api/vault/deposit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              apiKey: apiKey || walletAddress,
-              walletAddress,
-              amountUsdc: principalMicro,
-              principalUsdc: position.principalUsdc,
-              advanceUsdc: (advanceMicro / 1_000000).toString(),
-              onChain: true,
-            }),
-          }).catch(console.warn);
-
           return;
         }
       }
@@ -414,6 +387,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         connected,
         apiKey,
         walletAddress,
+        walletStatus: connectedAddress
+          ? 'connected'
+          : accountStatus === 'reconnecting' || accountStatus === 'connecting'
+            ? 'reconnecting'
+            : 'disconnected',
         setApiKey,
         connectWallet,
         connectDemoWallet,
