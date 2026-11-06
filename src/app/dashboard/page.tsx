@@ -278,30 +278,37 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Deposit Tiers */}
-            <div className="slide-up" style={{ animationDelay: '0.2s' }}>
+            {/* Time Simulator */}
+            <div className="slide-up" style={{ animationDelay: '0.3s' }}>
+              <div className="relative bg-black/50 border border-white/10 rounded-lg p-6 backdrop-blur-sm">
+                <h3 className="text-lg font-medium mb-2">Yield reconcile</h3>
+                <p className="text-sm text-white/60">
+                  Chainlink CRE reads this vault and official USYC every 6 hours, checks the gateway spend ledger, and repays used yield on-chain.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-8 space-y-6">
+            <div className="slide-up lg:sticky lg:top-24">
               <div className="relative group">
                 <div className="absolute -inset-[1px] bg-gradient-to-r from-white/10 to-white/0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 <div className="relative bg-black/50 border border-white/10 rounded-lg p-6 backdrop-blur-sm">
                   <div className="flex items-center gap-2 mb-5">
                     <Database className="w-5 h-5 text-white/60" />
-                    <h3 className="text-lg font-medium">Deposit Tiers</h3>
+                    <h3 className="text-lg font-medium">Deposit</h3>
                   </div>
-                  
                   <div className="grid grid-cols-2 gap-3 mb-5">
-                    {[10, 50, 100, 250].map((amount, i) => (
+                    {[10, 50, 100, 250].map((amount) => (
                       <button
                         key={amount}
                         onClick={() => handleDeposit(amount)}
-                        className="group relative px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded font-medium transition-all duration-300 overflow-hidden hover-lift"
-                        style={{ animationDelay: `${i * 0.1}s` }}
+                        className="px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded font-medium"
                       >
-                        <span className="relative z-10 text-lg text-white font-display">${amount}</span>
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                        <span className="text-lg text-white font-display">${amount}</span>
                       </button>
                     ))}
                   </div>
-
                   <div className="pt-4 border-t border-white/10 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-white/50">USYC NAV</span>
@@ -315,19 +322,6 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-
-            {/* Time Simulator */}
-            <div className="slide-up" style={{ animationDelay: '0.3s' }}>
-              <div className="relative bg-black/50 border border-white/10 rounded-lg p-6 backdrop-blur-sm">
-                <h3 className="text-lg font-medium mb-2">Yield reconcile</h3>
-                <p className="text-sm text-white/60">
-                  Chainlink CRE reads this vault and official USYC every 6 hours, checks the gateway spend ledger, and repays used yield on-chain.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-8">
             <div className="slide-up" style={{ animationDelay: '0.5s' }}>
               <div className="sticky top-24 relative group">
                 <div className="absolute -inset-[1px] bg-gradient-to-r from-white/10 to-white/0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300" />

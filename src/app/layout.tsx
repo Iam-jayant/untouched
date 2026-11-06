@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import "@/styles/globals.css";
 import ClientProviders from "@/components/providers/ClientProviders";
+import { PwaRegister } from "@/components/providers/PwaRegister";
 import { Toaster } from "sonner";
 
 const instrumentSans = Instrument_Sans({
@@ -51,9 +52,10 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Untouched" />
-        <meta name="theme-color" content="#10B981" />
+        <meta name="theme-color" content="#000000" />
       </head>
       <body className="antialiased bg-[#090A0F] text-white" suppressHydrationWarning>
+        <PwaRegister />
         <Toaster position="top-center" richColors expand={true} />
         <ClientProviders>{children}</ClientProviders>
       </body>

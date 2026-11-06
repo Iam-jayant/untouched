@@ -58,7 +58,10 @@ export default function PlaygroundPage() {
   const [showPairModal, setShowPairModal] = useState(false);
   const [executionTrace, setExecutionTrace] = useState<ExecutionTrace | null>(null);
   const [lastPrompt, setLastPrompt] = useState<{ model: string; prompt: string } | null>(null);
-  const [lastUsage, setLastUsage] = useState({ prompt: 0, completion: 0, total: 0, cost: 0 });
+  const latest = receipts[0];
+  const lastPromptTokens = latest?.promptTokens || 0;
+  const lastCompletionTokens = latest?.completionTokens || 0;
+  const lastTotalTokens = latest?.totalTokens || 0;
 
   const totals = useMemo(() => {
     return receipts.reduce(
@@ -106,12 +109,6 @@ export default function PlaygroundPage() {
       }
 
       setResponse(data.choices?.[0]?.message?.content || 'No response');
-      setLastUsage({
-        prompt: data.usage?.prompt_tokens || 0,
-        completion: data.usage?.completion_tokens || 0,
-        total: data.usage?.total_tokens || 0,
-        cost: 0,
-      });
       if (data.executionTrace) setExecutionTrace(data.executionTrace);
     } catch (error) {
       setResponse(`Error: ${(error as Error).message}`);
@@ -152,9 +149,9 @@ export default function PlaygroundPage() {
           <>
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
               {[
-                ['Prompt tokens', lastUsage.prompt.toLocaleString()],
-                ['Completion tokens', lastUsage.completion.toLocaleString()],
-                ['Last call', lastUsage.total.toLocaleString()],
+                ['Prompt tokens', lastPromptTokens.toLocaleString()],
+                ['Completion tokens', lastCompletionTokens.toLocaleString()],
+                ['Last call', lastTotalTokens.toLocaleString()],
                 ['Session tokens', totals.total.toLocaleString()],
                 ['Yield spent', `$${(totals.cost / 1_000000).toFixed(4)}`],
                 ['Battery left', `$${((userState?.remaining || 0) / 1_000000).toFixed(4)}`],

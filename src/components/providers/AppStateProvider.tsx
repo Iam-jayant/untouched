@@ -88,6 +88,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           }
         } catch {}
       }
+      const cachedReceipts = localStorage.getItem('untouched_receipts');
+      if (cachedReceipts) {
+        try {
+          const parsed = JSON.parse(cachedReceipts);
+          if (Array.isArray(parsed)) setReceipts(parsed);
+        } catch {}
+      }
     }
   }, []);
 
@@ -109,10 +116,23 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setApiKeyState(data.activeApiKey);
     }
     if (data.user) {
-      localStorage.setItem('untouched_cached_state', JSON.stringify(data.user));
+      setUserState((current) => {
+        const incoming = data.user;
+        const keepBalances = current && current.principal > 0 && !(incoming.principal > 0);
+        const next = keepBalances
+          ? {
+              ...incoming,
+              principal: current.principal,
+              battery: current.battery,
+              remaining: current.remaining,
+              advance: current.advance,
+              apiKey: data.activeApiKey || current.apiKey,
+            }
+          : incoming;
+        localStorage.setItem('untouched_cached_state', JSON.stringify(next));
+        return next;
+      });
     }
-    setWalletAddress(walletAddr);
-    setUserState(data.user);
     setConnected(true);
   };
 
@@ -144,6 +164,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('untouched_wallet');
     localStorage.removeItem('untouched_api_key');
     localStorage.removeItem('untouched_cached_state');
+    localStorage.removeItem('untouched_receipts');
   };
 
   // Set API key (for switching between keys)
@@ -186,74 +207,33 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         if (data.userState) {
-          // If backend has non-zero principal, or no wallet to verify, accept it directly and cache
-          if (data.userState.principal > 0 || !walletAddress) {
-            setUserState(data.userState);
+          setUserState((current) => {
+            const incoming = data.userState;
+            const keepBalances = current && current.principal > 0 && !(incoming.principal > 0);
+            const next = keepBalances
+              ? {
+                  ...incoming,
+                  principal: current.principal,
+                  battery: current.battery,
+                  remaining: current.remaining,
+                  advance: current.advance,
+                }
+              : incoming;
             if (typeof window !== 'undefined') {
-              localStorage.setItem('untouched_cached_state', JSON.stringify(data.userState));
+              localStorage.setItem('untouched_cached_state', JSON.stringify(next));
             }
-            setReceipts(data.receipts || []);
-            if (data.pendingApprovals?.length > 0) {
-              setPendingApproval(data.pendingApprovals[0]);
-            }
-            setConnected(true);
-            return;
-          } else {
-            // Backend returned 0 principal. Check if local cache has a non-zero deposit
+            return next;
+          });
+          setReceipts((current) => {
+            const incoming = data.receipts || [];
+            const next = incoming.length === 0 && current.length > 0 ? current : incoming;
             if (typeof window !== 'undefined') {
-              const cached = localStorage.getItem('untouched_cached_state');
-              if (cached) {
-                try {
-                  const parsed = JSON.parse(cached);
-                  if (parsed && parsed.principal > 0) {
-                    console.log('[AppState] Preserving cached active deposit:', parsed.principal);
-                    setUserState(parsed);
-                    setConnected(true);
-                    return;
-                  }
-                } catch {}
-              }
+              localStorage.setItem('untouched_receipts', JSON.stringify(next));
             }
-            // If genuinely 0 with no cache, apply it
-            setUserState(data.userState);
-            setReceipts(data.receipts || []);
-            setConnected(true);
-            return;
-          }
-        }
-      }
-
-      // If backend returned principal === 0 or failed, check on-chain as truth
-      if (walletAddress) {
-        const { getVaultPosition } = await import('@/lib/blockchain-vault');
-        const position = await getVaultPosition(walletAddress);
-        const principalUsdcNum = parseFloat(position.principalUsdc || '0');
-
-        if (principalUsdcNum > 0) {
-          console.log('[AppState] Found active on-chain position:', position);
-          const principalMicro = Math.floor(principalUsdcNum * 1_000000);
-          const unpaidMicro = Math.floor(parseFloat(position.unpaidAdvanceUsdc || '0') * 1_000000);
-          const maxPerCallMicro = Math.floor(parseFloat(position.maxPerCallUsdc || '0') * 1_000000);
-          const advanceMicro = Math.floor((principalMicro * 0.05 * 14) / 365);
-          const remainingMicro = Math.max(0, advanceMicro - unpaidMicro);
-
-          const syncedState: UserState = {
-            apiKey: apiKey || walletAddress,
-            principal: principalMicro,
-            advance: advanceMicro,
-            battery: advanceMicro,
-            remaining: remainingMicro,
-            agentSigner: position.agentSignerEOA || '0x0077777d7EBA4688BDeF3E311b846F25870A19B9',
-            depositTimestamp: Date.now(),
-            lastActivity: Date.now(),
-            maxPerCallUsdc: maxPerCallMicro || 5000,
-            displayName: `User ${walletAddress.slice(0, 6)}`,
-            walletAddress,
-          };
-
-          setUserState(syncedState);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('untouched_cached_state', JSON.stringify(syncedState));
+            return next;
+          });
+          if (data.pendingApprovals?.length > 0) {
+            setPendingApproval(data.pendingApprovals[0]);
           }
           setConnected(true);
           return;
@@ -270,7 +250,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
     if (typeof window !== 'undefined') {
       const pathname = window.location.pathname;
-      if (!pathname.startsWith('/dashboard') && !pathname.startsWith('/mobile')) {
+      if (!pathname.startsWith('/dashboard') && !pathname.startsWith('/playground') && !pathname.startsWith('/mobile')) {
         return;
       }
     }
@@ -287,7 +267,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
     if (typeof window !== 'undefined') {
       const pathname = window.location.pathname;
-      if (!pathname.startsWith('/dashboard') && !pathname.startsWith('/mobile')) {
+      if (!pathname.startsWith('/dashboard') && !pathname.startsWith('/playground') && !pathname.startsWith('/mobile')) {
         return;
       }
     }
@@ -313,7 +293,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     eventSource.addEventListener('receipt', (e) => {
       const receipt: Receipt = JSON.parse(e.data);
       console.log('[SSE] Receipt:', receipt);
-      setReceipts((prev) => [receipt, ...prev]);
+      setReceipts((prev) => {
+        const next = [receipt, ...prev];
+        localStorage.setItem('untouched_receipts', JSON.stringify(next));
+        return next;
+      });
     });
 
     eventSource.addEventListener('balance_update', (e) => {

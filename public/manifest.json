@@ -3,9 +3,10 @@
   "short_name": "Untouched",
   "description": "Your principal stays untouched. Only yield pays for AI.",
   "start_url": "/mobile",
+  "id": "/mobile",
   "display": "standalone",
-  "background_color": "#090A0F",
-  "theme_color": "#10B981",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "orientation": "portrait",
   "icons": [
     {
