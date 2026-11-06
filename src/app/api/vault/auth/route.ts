@@ -12,28 +12,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'crypto';
-import { getUser, createUser, getAPIKeys, createAPIKey } from '@/lib/agent-store';
-import { DEMO_DEPOSIT_USDC, calculateAdvance, calculateBattery } from '@/lib/constants';
+import { getUser, createUser, getAPIKeys } from '@/lib/agent-store';
 
 function normalizeAddress(address: string): string {
   return address.toLowerCase().trim();
 }
 
 function deriveAgentSigner(walletAddress: string): string {
-  // Derive deterministic isolated agent signer EOA from user's wallet
-  // Using keccak256-like hash (simplified for demo - production should use proper derivation)
   const hash = createHash('sha256').update(`untouched_agent_${walletAddress}`).digest('hex');
   return `0x${hash.slice(0, 40)}`;
-}
-
-function generatePersonalAPIKey(walletAddress: string): string {
-  // Format: unt_live_<first4hex>_<random12hex>
-  const prefix = walletAddress.slice(2, 6).toLowerCase();
-  const random = createHash('sha256')
-    .update(`${walletAddress}_${Date.now()}_${Math.random()}`)
-    .digest('hex')
-    .slice(0, 12);
-  return `unt_live_${prefix}_${random}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -90,41 +77,23 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // New user - create profile
+    // New user. The API key is issued after the first confirmed stake.
     const agentSignerEOA = deriveAgentSigner(normalizedWallet);
-    const personalAPIKey = generatePersonalAPIKey(normalizedWallet);
 
-    // Initialize with $0 - user must deposit first
-    const initialPrincipal = 0;
-    const advance = 0;
-    const battery = 0;
-
-    // Create user in agent-store (and Supabase if configured)
     const newUser = await createUser({
       id: normalizedWallet,
-      apiKey: normalizedWallet, // Use wallet as primary identifier
+      apiKey: normalizedWallet,
       displayName: displayName || `User ${normalizedWallet.slice(0, 6)}`,
       walletAddress: normalizedWallet,
       agentSigner: agentSignerEOA,
-      principal: initialPrincipal,
-      advance,
-      battery,
-      remaining: battery,
-      maxPerCallUsdc: 5000, // $0.005
-      depositTimestamp: Date.now(),
+      principal: 0,
+      advance: 0,
+      battery: 0,
+      remaining: 0,
+      maxPerCallUsdc: 5000,
+      depositTimestamp: 0,
       lastActivity: Date.now(),
     });
-
-    // Create personal master API key
-    const apiKey = await createAPIKey({
-      key: personalAPIKey,
-      userId: normalizedWallet,
-      name: 'Master Vault Key',
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    });
-
-    const apiKeys = [apiKey];
 
     return NextResponse.json({
       status: 'new_user',
@@ -140,8 +109,8 @@ export async function POST(req: NextRequest) {
         maxPerCallUsdc: newUser.maxPerCallUsdc,
         depositTimestamp: newUser.depositTimestamp,
       },
-      apiKeys,
-      activeApiKey: personalAPIKey,
+      apiKeys: [],
+      activeApiKey: null,
     });
   } catch (error) {
     console.error('[API] /vault/auth error:', error);

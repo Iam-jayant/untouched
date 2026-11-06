@@ -46,45 +46,44 @@ export function calculateBattery(principalUSDC: number): number {
 // ============================================================================
 
 export const ARC_TESTNET_CHAIN_ID = 5042002;
+export const ARC_CAIP2 = 'eip155:5042002';
+export const ARC_RPC_URL = 'https://rpc.testnet.arc.network';
+export const ARC_RPC_FALLBACK = 'https://rpc.solidrpc.io/public/evm/5042002';
+export const ARC_EXPLORER = 'https://testnet.arcscan.app';
 export const ARC_USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
+export const ARC_USYC_ADDRESS = '0xe9185f0c5f296ed1797aae4238d26ccabeadb86c';
 export const GATEWAY_WALLET_ADDRESS = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9';
+export const NATIVE_PER_MICRO = 1_000_000_000_000n;
 
-export const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS!;
-export const ORACLE_ADDRESS = process.env.NEXT_PUBLIC_ORACLE_ADDRESS!;
+export const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0xcA9F8D931b6a0dE64ED74757A66aCB203413f2C1';
+export const ORACLE_ADDRESS = process.env.NEXT_PUBLIC_ORACLE_ADDRESS || '';
 
 // ============================================================================
-// Free-Tier LLM Routing Map (Enhancement 2)
+// Yield models. $1 per 1M tokens. Locked models stay visible and are refused.
 // ============================================================================
 
-/**
- * Free-tier models (priority order):
- * 1. OpenRouter :free models (gpt-4o-mini, claude-3-5-haiku, deepseek-v3, llama-3.3-70b)
- * 2. Groq (llama-3.3-70b)
- * 3. Gemini (gemini-2.0-flash-exp:free)
- * 4. Mock fallback (always succeeds)
- */
-export const FREE_TIER_MODELS: ModelConfig[] = [
+export const YIELD_MODELS: ModelConfig[] = [
   {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o Mini',
-    provider: 'openrouter',
-    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    costPerMToken: 1.0, // $0.001 per 1000 tokens
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    provider: 'gemini',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+    costPerMToken: 1.0,
     free: true,
     fallbackOrder: 1,
   },
   {
-    id: 'anthropic/claude-3-5-haiku',
-    name: 'Claude 3.5 Haiku',
-    provider: 'openrouter',
-    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+    id: 'llama-3.3-70b-versatile',
+    name: 'Llama 3.3 70B',
+    provider: 'groq',
+    endpoint: 'https://api.groq.com/openai/v1/chat/completions',
     costPerMToken: 1.0,
     free: true,
     fallbackOrder: 2,
   },
   {
-    id: 'deepseek/deepseek-chat',
-    name: 'DeepSeek V3',
+    id: 'qwen/qwen-2.5-72b-instruct',
+    name: 'Qwen 2.5 72B',
     provider: 'openrouter',
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
     costPerMToken: 1.0,
@@ -92,144 +91,100 @@ export const FREE_TIER_MODELS: ModelConfig[] = [
     fallbackOrder: 3,
   },
   {
-    id: 'meta-llama/llama-3.3-70b-instruct',
-    name: 'Llama 3.3 70B (OpenRouter)',
+    id: 'deepseek/deepseek-r1',
+    name: 'DeepSeek R1',
     provider: 'openrouter',
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
     costPerMToken: 1.0,
     free: true,
     fallbackOrder: 4,
   },
-  {
-    id: 'llama-3.3-70b-versatile',
-    name: 'Llama 3.3 70B (Groq)',
-    provider: 'groq',
-    endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-    costPerMToken: 1.0,
-    free: true,
-    fallbackOrder: 5,
-  },
-  {
-    id: 'gemini-2.0-flash-exp',
-    name: 'Gemini 2.0 Flash',
-    provider: 'gemini',
-    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
-    costPerMToken: 1.0,
-    free: true,
-    fallbackOrder: 6,
-  },
-  {
-    id: 'mock-gpt-4o',
-    name: 'Mock GPT-4o (Fallback)',
-    provider: 'mock',
-    endpoint: '',
-    costPerMToken: 1.0,
-    free: true,
-    fallbackOrder: 99,
-  },
 ];
 
-/**
- * Heavy models. A single call can exceed the default per-call cap.
- */
-export const PREMIUM_MODELS: ModelConfig[] = [
+export const LOCKED_MODELS: ModelConfig[] = [
+  {
+    id: 'anthropic/claude-3-5-sonnet',
+    name: 'Claude 3.5 Sonnet',
+    provider: 'openrouter',
+    endpoint: '',
+    costPerMToken: 1.0,
+    free: false,
+    fallbackOrder: 0,
+    locked: true,
+  },
   {
     id: 'anthropic/claude-3-opus',
     name: 'Claude 3 Opus',
     provider: 'openrouter',
-    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    costPerMToken: 20.0, // $0.020 per 1000 tokens
+    endpoint: '',
+    costPerMToken: 1.0,
     free: false,
     fallbackOrder: 0,
+    locked: true,
   },
   {
-    id: 'openai/o3-pro',
-    name: 'OpenAI o3-pro',
+    id: 'gpt-4o',
+    name: 'GPT-4o',
     provider: 'openrouter',
-    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    costPerMToken: 20.0,
+    endpoint: '',
+    costPerMToken: 1.0,
     free: false,
     fallbackOrder: 0,
+    locked: true,
+  },
+  {
+    id: 'o1',
+    name: 'o1',
+    provider: 'openrouter',
+    endpoint: '',
+    costPerMToken: 1.0,
+    free: false,
+    fallbackOrder: 0,
+    locked: true,
   },
 ];
+
+export const FREE_TIER_MODELS = YIELD_MODELS;
+export const PREMIUM_MODELS = LOCKED_MODELS;
 
 /**
  * Combined model map (keyed by model ID)
  * Includes flexible mappings for common model name variants
  */
 export const MODELS = new Map<string, ModelConfig>(
-  [...FREE_TIER_MODELS, ...PREMIUM_MODELS].map((m) => [m.id, m])
+  [...YIELD_MODELS, ...LOCKED_MODELS].map((m) => [m.id, m])
 );
 
-/**
- * Map flexible model names to standard models
- * Routine models: $1 per 1M tokens
- * Heavy models: $20 per 1M tokens
- */
-export function resolveModel(modelName: string): ModelConfig {
-  // Check exact match first
+const LOCKED_ALIASES = ['claude', 'gpt-4o', 'gpt-4', 'o1', 'o3', 'opus', 'sonnet'];
+
+export function resolveModel(modelName: string): ModelConfig | null {
   const exactMatch = MODELS.get(modelName);
   if (exactMatch) return exactMatch;
-
   const lowerName = modelName.toLowerCase();
-
-  // Heavy models map to $20 per 1M tokens
-  const heavyPatterns = [
-    'opus', 'o1', 'o3', 'o3-pro', 'o3-mini', 
-    'claude-3-opus', 'claude-opus', 
-    'deep-research', 'claude-3.5-opus'
-  ];
-
-  if (heavyPatterns.some(pattern => lowerName.includes(pattern))) {
-    // Return a generic heavy model config
+  if (LOCKED_ALIASES.some((pattern) => lowerName.includes(pattern))) {
     return {
       id: modelName,
       name: modelName,
       provider: 'openrouter',
-      endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-      costPerMToken: 20.0, // $0.020
+      endpoint: '',
+      costPerMToken: 1.0,
       free: false,
       fallbackOrder: 0,
+      locked: true,
     };
   }
-
-  // Routine models - all map to $0.001 (auto-approve)
-  const routinePatterns = [
-    'gpt-4o-mini', 'gpt-4o', 'gpt-4', 'gpt-3.5',
-    'claude-3-5-haiku', 'claude-3-haiku', 'haiku',
-    'gemini', 'llama', 'deepseek', 'mistral'
-  ];
-
-  if (routinePatterns.some(pattern => lowerName.includes(pattern))) {
-    // Return a generic routine model config
-    return {
-      id: modelName,
-      name: modelName,
-      provider: 'openrouter',
-      endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-      costPerMToken: 1.0, // $0.001
-      free: true,
-      fallbackOrder: 1,
-    };
-  }
-
-  // Default: treat as routine model
-  return {
-    id: modelName,
-    name: modelName,
-    provider: 'openrouter',
-    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    costPerMToken: 1.0,
-    free: true,
-    fallbackOrder: 1,
-  };
+  return null;
 }
 
-/**
- * Get free-tier models sorted by fallback order
- */
 export function getFreeTierCascade(): ModelConfig[] {
-  return [...FREE_TIER_MODELS].sort((a, b) => a.fallbackOrder - b.fallbackOrder);
+  return YIELD_MODELS.filter((model) => !model.locked);
+}
+
+export function providerKeyConfigured(provider: ModelConfig['provider']): boolean {
+  if (provider === 'gemini') return Boolean(process.env.GEMINI_API_KEY);
+  if (provider === 'groq') return Boolean(process.env.GROQ_API_KEY);
+  if (provider === 'openrouter') return Boolean(process.env.OPENROUTER_API_KEY);
+  return false;
 }
 
 // ============================================================================

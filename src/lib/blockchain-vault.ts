@@ -13,27 +13,16 @@
 import { ethers } from 'ethers';
 
 // Contract addresses from .env - ensure they're accessible on client side
-const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x649a09b10c70fffe9ef5f8d70e5a7de292b793df';
+const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0xcA9F8D931b6a0dE64ED74757A66aCB203413f2C1';
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS || '0x3600000000000000000000000000000000000000';
 const ARC_TESTNET_RPC = process.env.NEXT_PUBLIC_ARC_TESTNET_RPC || 'https://rpc.testnet.arc.network';
 const ARC_CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_ARC_CHAIN_ID || '5042002');
 const AGENT_SIGNER_EOA = process.env.NEXT_PUBLIC_GATEWAY_WALLET || '0x0077777d7EBA4688BDeF3E311b846F25870A19B9';
 
-console.log('[Blockchain] Config loaded:', {
-  VAULT_ADDRESS,
-  USDC_ADDRESS,
-  ARC_TESTNET_RPC,
-  ARC_CHAIN_ID,
-  AGENT_SIGNER_EOA,
-});
-
-// Vault ABI - inline to avoid import issues
 const VAULT_ABI = [
-  'function depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 nullifier)',
-  'function withdrawPrincipal()',
-  'function positions(address) view returns (uint256 principalUsdc, uint256 shares, uint256 maxPerCallUsdc, address agentSignerEOA, uint256 unpaidAdvanceUsdc, bytes32 nullifier)',
-  'event DepositWithAdvance(address indexed user, uint256 principalUsdc, uint256 advanceUsdc, uint256 shares, address agentSignerEOA, bytes32 nullifier)',
-  'event PrincipalWithdrawn(address indexed user, uint256 payoutUsdc, uint256 unpaidShortfallUsdc)',
+  'function depositNative() payable',
+  'function withdraw()',
+  'function positions(address) view returns (uint256 principal, uint256 yieldQuota, uint256 usedCredit)',
 ];
 
 // ERC-20 ABI (only what we need)
@@ -394,18 +383,18 @@ export async function getVaultPosition(address: string): Promise<{
   unpaidAdvanceUsdc: string;
   agentSignerEOA?: string;
 }> {
-  const provider = new ethers.providers.JsonRpcProvider(ARC_TESTNET_RPC);
+  if (!VAULT_ADDRESS) {
+    return { principalUsdc: '0', shares: '0', maxPerCallUsdc: '0', unpaidAdvanceUsdc: '0' };
+  }
+  const provider = new ethers.providers.StaticJsonRpcProvider(ARC_TESTNET_RPC, 5042002);
   const vaultContract = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, provider);
-  
   try {
     const position = await vaultContract.positions(address);
-    
     return {
-      principalUsdc: ethers.utils.formatUnits(position.principalUsdc, 6),
-      shares: position.shares.toString(),
-      maxPerCallUsdc: ethers.utils.formatUnits(position.maxPerCallUsdc, 6),
-      unpaidAdvanceUsdc: ethers.utils.formatUnits(position.unpaidAdvanceUsdc, 6),
-      agentSignerEOA: position.agentSignerEOA,
+      principalUsdc: ethers.utils.formatUnits(position.principal, 6),
+      shares: '0',
+      maxPerCallUsdc: '0.005',
+      unpaidAdvanceUsdc: ethers.utils.formatUnits(position.usedCredit, 6),
     };
   } catch (error) {
     console.error('[Blockchain] Failed to get vault position:', error);
