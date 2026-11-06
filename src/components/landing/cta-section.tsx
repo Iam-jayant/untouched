@@ -36,7 +36,7 @@ export function CtaSection() {
                 </h2>
 
                 <p className="text-xl text-muted-foreground mb-12 leading-relaxed max-w-xl">
-                  Test the live AI Playground on your PC and pair the Mobile Companion PWA to experience World ID step-up and gasless Arc Nanopayments.
+                  Test the live AI playground on your PC and pair the mobile companion for vault controls and gasless Arc nanopayments.
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-start gap-4">

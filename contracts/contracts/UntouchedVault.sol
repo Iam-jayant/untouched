@@ -104,7 +104,7 @@ contract MockUSYCOracle is Ownable, IAggregatorV3 {
 /// yieldBackingUsdc can be consumed. At completed transaction boundaries, for standard non-rebasing,
 /// non-fee-on-transfer USDC, balanceOf(this) >= sum of live principals + creditReservePool +
 /// yieldBackingUsdc. Early exits retain unpaid credit shortfalls from principal and restore reserves.
-/// Nullifiers are unique opaque identifiers, not verified World ID proofs. Signers are nonzero
+/// Nullifiers are unique opaque identifiers. Signers are nonzero
 /// addresses; their EOA status is not enforced. No freshness interval is imposed on this mock feed.
 contract PrincipalCreditVault is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -133,7 +133,7 @@ contract PrincipalCreditVault is Ownable, ReentrancyGuard {
         uint256 maxPerCallUsdc;
         address agentSignerEOA;
         uint256 unpaidAdvanceUsdc;
-        bytes32 worldIdNullifier;
+        bytes32 nullifier;
     }
 
     /// @notice Position by depositor; zero shares means no active position.
@@ -143,7 +143,7 @@ contract PrincipalCreditVault is Ownable, ReentrancyGuard {
     /// @notice Separately funded cash available to back simulated surplus.
     uint256 public yieldBackingUsdc;
     /// @notice Whether a nullifier has ever been used, including for closed positions.
-    mapping(bytes32 => bool) public usedWorldIdNullifiers;
+    mapping(bytes32 => bool) public usedNullifiers;
     /// @notice Number of successful state-recording NAV reads.
     uint256 public oracleReadCount;
     /// @notice Latest NAV observed by a state-recording read.
@@ -164,7 +164,7 @@ contract PrincipalCreditVault is Ownable, ReentrancyGuard {
     error InvalidOracleRound(uint80 roundId, uint80 answeredInRound, uint256 updatedAt);
 
     event ReservePoolFunded(uint256 amount);
-    event DepositWithAdvance(address indexed user, uint256 principalUsdc, uint256 advanceUsdc, uint256 shares, address agentSignerEOA, bytes32 worldIdNullifier);
+    event DepositWithAdvance(address indexed user, uint256 principalUsdc, uint256 advanceUsdc, uint256 shares, address agentSignerEOA, bytes32 nullifier);
     event YieldReconciled(address indexed user, uint256 surplusUsdc, uint256 repaidUsdc);
     event PrincipalWithdrawn(address indexed user, uint256 payoutUsdc, uint256 unpaidShortfallUsdc);
     event SpendPolicyUpdated(address indexed user, uint256 newMaxPerCallUsdc, address newAgentSignerEOA);
@@ -202,16 +202,16 @@ contract PrincipalCreditVault is Ownable, ReentrancyGuard {
     /// All effects precede token interactions. Nullifiers remain consumed after withdrawal.
     /// @param amountUsdc Principal in six-decimal USDC, at least MIN_DEPOSIT_USDC.
     /// @param agentSignerEOA Nonzero recipient of the advance and future reconciled excess yield.
-    /// @param worldIdNullifier Nonzero, previously unused opaque identity identifier.
-    function depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 worldIdNullifier)
+    /// @param nullifier Nonzero, previously unused opaque identity identifier.
+    function depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 nullifier)
         external nonReentrant
     {
         if (amountUsdc < MIN_DEPOSIT_USDC) revert DepositBelowMinimum(amountUsdc);
         if (agentSignerEOA == address(0)) revert ZeroAddress();
-        if (worldIdNullifier == bytes32(0)) revert InvalidNullifier();
-        if (usedWorldIdNullifiers[worldIdNullifier]) revert NullifierAlreadyUsed(worldIdNullifier);
+        if (nullifier == bytes32(0)) revert InvalidNullifier();
+        if (usedNullifiers[nullifier]) revert NullifierAlreadyUsed(nullifier);
         if (positions[msg.sender].shares != 0) revert PositionAlreadyExists(msg.sender);
-        usedWorldIdNullifiers[worldIdNullifier] = true;
+        usedNullifiers[nullifier] = true;
 
         uint256 nav = _readNavAndRecord();
         uint256 shares = Math.mulDiv(amountUsdc, SHARE_SCALE, nav);
@@ -226,11 +226,11 @@ contract PrincipalCreditVault is Ownable, ReentrancyGuard {
             maxPerCallUsdc: DEFAULT_MAX_PER_CALL_USDC,
             agentSignerEOA: agentSignerEOA,
             unpaidAdvanceUsdc: advance,
-            worldIdNullifier: worldIdNullifier
+            nullifier: nullifier
         });
         usdc.safeTransferFrom(msg.sender, address(this), amountUsdc);
         usdc.safeTransfer(agentSignerEOA, reserveCost);
-        emit DepositWithAdvance(msg.sender, amountUsdc, advance, shares, agentSignerEOA, worldIdNullifier);
+        emit DepositWithAdvance(msg.sender, amountUsdc, advance, shares, agentSignerEOA, nullifier);
     }
 
     /// @notice Returns simulated accrued surplus without capping it to available cash backing.

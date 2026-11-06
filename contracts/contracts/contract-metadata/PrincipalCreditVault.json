@@ -126,7 +126,7 @@
           "internalType": "address"
         },
         {
-          "name": "worldIdNullifier",
+          "name": "nullifier",
           "type": "bytes32",
           "internalType": "bytes32"
         }
@@ -268,7 +268,7 @@
           "internalType": "uint256"
         },
         {
-          "name": "worldIdNullifier",
+          "name": "nullifier",
           "type": "bytes32",
           "internalType": "bytes32"
         }
@@ -341,7 +341,7 @@
     },
     {
       "type": "function",
-      "name": "usedWorldIdNullifiers",
+      "name": "usedNullifiers",
       "inputs": [
         {
           "name": "",
@@ -426,7 +426,7 @@
           "internalType": "address"
         },
         {
-          "name": "worldIdNullifier",
+          "name": "nullifier",
           "type": "bytes32",
           "indexed": false,
           "internalType": "bytes32"

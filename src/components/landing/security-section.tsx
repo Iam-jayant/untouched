@@ -11,13 +11,13 @@ const securityFeatures = [
   },
   {
     icon: Lock,
-    title: "World IDKit Sybil Gate",
-    description: "Server-side and onchain nullifier checks guarantee bots cannot spin up 1,000 wallets to drain the day-1 Credit Reserve Pool.",
+    title: "One credit line per deposit",
+    description: "Each deposit carries a unique nullifier. The vault rejects a reused nullifier, so the same credit advance cannot be claimed twice.",
   },
   {
     icon: Eye,
-    title: "World ID Agent Pass Step-Up",
-    description: "Any prompt exceeding your per-call slider ($0.005 default) holds the HTTP request and triggers a biometric challenge on your Mobile PWA.",
+    title: "Per-call spend cap",
+    description: "Any prompt over your limit ($0.005 by default) is rejected immediately. The call costs $0 and your principal stays in the vault.",
   },
   {
     icon: FileCheck,
@@ -73,7 +73,7 @@ export function SecuritySection() {
             isVisible ? "opacity-100" : "opacity-0"
           }`}>
             <p className="text-xl text-muted-foreground leading-relaxed max-w-2xl">
-              Powered by Arc, World ID, and Chainlink. Even if an autonomous coding agent enters an infinite loop, your underlying USDC principal cannot be touched.
+              Powered by Arc and Chainlink. Even if an autonomous coding agent enters an infinite loop, your underlying USDC principal cannot be touched.
             </p>
           </div>
         </div>
@@ -91,7 +91,7 @@ export function SecuritySection() {
             </div>
             
             <div className="absolute bottom-8 left-8 right-8 flex flex-wrap gap-2">
-              {["Arc Testnet (5042002)", "Circle x402", "World ID Agent Pass", "Chainlink CRE"].map((cert, index) => (
+              {["Arc Testnet (5042002)", "Circle x402", "USDC principal vault", "Chainlink CRE"].map((cert, index) => (
                 <span
                   key={cert}
                   className={`px-3 py-1 border border-foreground/10 text-xs font-mono text-muted-foreground transition-all duration-500 ${

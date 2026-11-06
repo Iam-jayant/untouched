@@ -1,6 +1,6 @@
 # Untouched — Complete Technology Stack & Tool Guide
 
-Every tool in our stack is chosen specifically to satisfy our 3 target ETHGlobal Mumbai sponsors (**Arc**, **World**, and **Chainlink**) while keeping the build fast and reliable.
+The stack is Arc for settlement, Chainlink for yield reconciliation, and a Next.js gateway in front of the LLM providers.
 
 ---
 
@@ -26,16 +26,7 @@ Every tool in our stack is chosen specifically to satisfy our 3 target ETHGlobal
 
 ---
 
-## 3. Identity, Sybil Resistance & Biometric Step-Up (World Stack)
-
-| Tool / SDK | Package / Endpoint | Exact Role in Untouched |
-| :--- | :--- | :--- |
-| **World IDKit** | `@worldcoin/idkit` + Backend `/api/world/verify-idkit` | Verifies unique humanness before `deposit()` unlocks the free `$0.095` Day-1 yield advance from the `CreditReservePool` (1 human = 1 instant credit line). |
-| **World ID Agent Pass** | `@worldcoin/idkit` (Action: `approve-high-spend-prompt`) + `/api/world/verify-agent-pass` | Step-up human verification triggered on the Mobile App whenever a prompt's cost exceeds the user's `$0.005` auto-approve limit. Enforces both the **Denied/Blocked path** and **Approved path**. |
-
----
-
-## 4. Oracle Automation & Cross-Chain (Chainlink Stack)
+## 3. Oracle Automation (Chainlink)
 
 | Tool / SDK | Package / Component | Exact Role in Untouched |
 | :--- | :--- | :--- |
@@ -52,4 +43,4 @@ Every tool in our stack is chosen specifically to satisfy our 3 target ETHGlobal
 | **Viem & Wagmi (`viem`, `wagmi`)** | Wallet connection for user's main wallet (`$50 USDC` deposit) AND backend management of the isolated **Agent Signer EOA** (`privateKeyToAccount`). |
 | **OpenAI / OpenRouter SDK (`openai`)** | Used inside `/api/v1/chat/completions` after Nanopayment verification to stream real responses from GPT-4o-mini, Claude 3.5 Haiku, or DeepSeek (with graceful fallback mock streaming if offline). |
 | **Tailwind CSS + Lucide Icons + Framer Motion** | High-craft dark-mode fintech UI, smooth battery depletion/refill animations, and slide-up mobile approval modals. |
-| **Server-Sent Events (SSE) / In-Memory State Bus** | Instant sub-100ms synchronization between the **PC Dashboard** and **Mobile Companion** so every prompt, spend slider change, and World ID Agent Pass approval updates both screens live. |
+| **Server-Sent Events (SSE) / In-Memory State Bus** | Pushes receipts and balance updates to the dashboard and the mobile vault. |

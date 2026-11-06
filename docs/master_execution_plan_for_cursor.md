@@ -14,8 +14,8 @@
   * Add `simulateDaysPassed(uint256 daysCount)` which increases NAV at `5% APY` (`~0.0136986%` per day, so 14 days increases NAV to `1_00191780`).
 * [ ] **1.2 `PrincipalCreditVault.sol`:**
   * Hold `CreditReservePool` liquidity in Arc USDC (`0x3600000000000000000000000000000000000000` or local testable ERC20 fallback).
-  * `deposit(uint256 amount, address agentSignerEOA, bytes32 worldIdNullifierHash)`:
-    * Require `worldIdNullifierHash` has not claimed an active credit advance (Sybil protection).
+  * `deposit(uint256 amount, address agentSignerEOA, bytes32 nullifier)`:
+    * Require `nullifier` has not been used.
     * Read `usycOracle.latestRoundData()` onchain (mandatory Chainlink state-changing read).
     * Mint simulated USYC shares for `amount` (`$50.00 USDC`).
     * Compute 14-day projected yield advance: `advance = (amount * 500 * 14) / (10000 * 365)` (capped at `$0.095 USDC` for `$50`).
@@ -35,7 +35,7 @@
 
 * [ ] **2.1 Isolated Agent Signer & State Store (`src/lib/agent-store.ts`):**
   * Create deterministic or session-stored **Agent Signer EOA** (`viem/accounts`) for the user, completely separate from their depositor wallet.
-  * Track live balances (`principalUsdc: 50.00`, `yieldBatteryUsdc: 0.0950`, `unpaidAdvanceUsdc: 0.0950`, `maxPerCallUsdc: 0.0050`, `worldIdVerified: boolean`), receipt history, and pending step-up approvals.
+  * Track live balances (`principalUsdc: 50.00`, `yieldBatteryUsdc: 0.0950`, `unpaidAdvanceUsdc: 0.0950`, `maxPerCallUsdc: 0.0050`) and receipt history.
 * [ ] **2.2 Arc Marketplace Discovery Service (`src/app/api/discovery/route.ts`):**
   * Fetch live resources from `GET https://api.circle.com/v2/x402/discovery/resources?supportsCircleGateway=true&limit=20`.
   * Parse `accepts` arrays (`scheme`, `network`, `asset`, `amount`) and group into `WEB_SEARCH_RESEARCH`, `CREATIVE`, `PREDICTION_MARKETS`, and `FINANCIAL_ANALYSIS` (include high-availability cached fallback of real Circle Discovery entries in case venue Wi-Fi drops).
@@ -46,19 +46,18 @@
   * Accept standard OpenAI chat completion payloads (`model`, `messages`, `attachMarketplaceTools`).
   * Calculate prompt cost (`$0.0010` for `gpt-4o-mini` / `claude-3-5-haiku`; `$0.0200` for `claude-3-opus-deep-research`).
   * **Branch 1 (`cost <= maxPerCallUsdc`):** Auto-sign EIP-3009 Nanopayment via Agent Signer EOA, deduct from `yieldBatteryUsdc`, attach discovered Arc Marketplace tool output, and return response + `x402Receipt`.
-  * **Branch 2 (`cost > maxPerCallUsdc`):** Create a `PENDING_STEP_UP` challenge, notify the Mobile App, and wait for World ID Agent Pass resolution (`APPROVED` or `BLOCKED`).
+  * **Branch 2 (`cost > maxPerCallUsdc`):** Return HTTP 403 immediately. Do not sign a payment.
 
 ---
 
-## Phase 3: World IDKit & Agent Pass Verification Routes
-**Goal:** Implement both server-side World ID verification flows and the mandatory **Blocked/Denied Path**.
+## Phase 3: Spend policy
+**Goal:** Reject over-cap calls in the gateway. Deposits use a unique nullifier, not an identity proof.
 
-* [ ] **3.1 Initial Deposit Sybil Gate (`/api/world/verify-idkit`):**
-  * Verify `@worldcoin/idkit` proof server-side and unlock the `$0.095 USDC` Day-1 yield credit advance.
-* [ ] **3.2 High-Spend Step-Up & Denied Path (`/api/world/step-up-decision`):**
-  * Handle two explicit actions from the Mobile App modal:
-    * `action: "REJECT_OR_UNVERIFIED"` -> **Mandatory World Denied Path:** Rejects the pending `/v1/chat/completions` call with HTTP `403`, logs a Crimson Red `BLOCKED BY WORLD ID AGENT PASS` receipt, and leaves `yieldBatteryUsdc` unchanged.
-    * `action: "APPROVE_WITH_PROOF"` -> Verifies World ID Agent Pass proof, executes the `$0.0200` Nanopayment, and completes the LLM request.
+* [x] **3.1 Policy engine**
+  * `403` when estimated cost exceeds `maxPerCallUsdc`.
+  * `402` when the yield balance is too small.
+* [x] **3.2 Deposit nullifier**
+  * `depositWithCreditAdvance` stores a unique nonzero `bytes32` and rejects reuse.
 
 ---
 
@@ -71,8 +70,8 @@
   * Green Safe Box (`$50.00 USDC Protected Savings`).
   * Blue Yield Battery (`$0.0950 USDC` animated progress bar + `95 Prompts Left`).
   * Interactive `Max Per-Prompt Spend Slider` (`$0.001` – `$0.025`, default `$0.005`).
-  * Slide-up **World ID Agent Pass Step-Up Modal** with both **Block (Denied Path)** and **Verify & Approve** buttons.
-  * Apple-Wallet style Nanopayment receipt feed.
+  * Deposit, withdraw, and the per-call spend slider.
+  * Receipt feed.
 * [ ] **4.3 PC Developer Command Center (`src/components/PcDashboard.tsx`):**
   * API Key & Base URL card with copyable snippets for **Cursor IDE**, **OpenAI SDK**, and **cURL**.
   * Live AI Playground with Model Selector (`gpt-4o-mini ($0.001)` vs. `claude-3-opus-deep-research ($0.020)`) and live **Arc Marketplace Discovery API** tool selector.
@@ -88,7 +87,7 @@
   * Write the clean CRE workflow script that reads `PrincipalCreditVault.getVaultStatus(user)` and triggers `reconcileAndRepay(user)` when accrued USYC NAV surplus covers the advance.
 * [ ] **5.2 End-to-End Demo Rehearsal:**
   * Verify all 4 demo beats work in `<90 seconds` on the Split-Screen view:
-    1. Verify World IDKit & Deposit `$50.00 USDC` -> `$0.0950` Battery unlocks instantly.
+    1. Deposit `$50.00 USDC` -> `$0.0950` battery unlocks.
     2. Run `$0.001` Haiku/GPT-4o-mini prompt with Arc Marketplace Search -> Auto-pays via Nanopayment; Savings stays `$50.00`.
-    3. Run `$0.020` Opus prompt -> Phone pops up World ID Agent Pass -> Click **Block** first (Red `403 Denied Path`), then run again and click **Approve** (Green `Approved Path`).
+    3. Run a `$0.020` Opus prompt over the cap -> HTTP 403, $0 spent. Raise the cap and run it again to see a normal charge.
     4. Click **Fast-Forward 14 Days** -> Chainlink CRE reconciles USYC NAV growth, repays Reserve Pool, and recharges Battery to `$0.0950`.

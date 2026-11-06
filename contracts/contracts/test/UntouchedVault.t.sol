@@ -129,7 +129,7 @@ contract UntouchedVaultTest is UntouchedVaultBase {
         assertEq(usdc.balanceOf(agent) - agentBefore, 96390);
         assertEq(aliceBefore - usdc.balanceOf(alice), 50e6);
         assertEq(poolBefore - vault.creditReservePool(), 96390);
-        assertTrue(vault.usedWorldIdNullifiers(N1));
+        assertTrue(vault.usedNullifiers(N1));
         assertEq(vault.oracleReadCount(), 1);
     }
 
@@ -334,7 +334,7 @@ contract UntouchedVaultTest is UntouchedVaultBase {
         vault.withdrawPrincipal();
     }
 
-    // ---------- (5) World ID nullifier ----------
+    // ---------- (5) deposit nullifier ----------
     function test_SameNullifierSecondDepositReverts() public {
         _deposit(alice, 50e6, agent, N1);
         vm.prank(bob);

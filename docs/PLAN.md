@@ -13,7 +13,7 @@
 4. [Phase 0 — Scaffold & Environment](#phase-0--scaffold--environment)
 5. [Phase 1 — Smart Contracts (Arc Studio & Arc Testnet)](#phase-1--smart-contracts)
 6. [Phase 2 — Backend Proxy, Discovery & Nanopayments](#phase-2--backend-proxy-discovery--nanopayments)
-7. [Phase 3 — World ID Verification Flows](#phase-3--world-id-verification-flows)
+7. [Phase 3 — Spend policy](#phase-3--spend-policy)
 8. [Phase 4 — Dual-Device Frontend](#phase-4--dual-device-frontend)
 9. [Phase 5 — Chainlink CRE Workflow & Final Polish](#phase-5--chainlink-cre-workflow--final-polish)
 10. [Sponsor Qualification Matrix](#sponsor-qualification-matrix)
@@ -25,14 +25,14 @@
 
 **Untouched** is a principal-protected LLM & MCP API Gateway on **Arc Testnet**.
 
-A user deposits **$10+ USDC** (with UI presets for $50, $100, $250, or Custom) into a vault, gets an instant credit advance (14 days of projected 5% APY yield — e.g., $0.095 for $50, $0.192 for $100), and receives a drop-in OpenAI/Anthropic-compatible API key (`https://untouched.dev/v1`). The principal stays isolated and *untouched* — only yield pays for AI prompts via **Circle Nanopayments**. A **World ID** gate prevents Sybil abuse, and a **World ID Agent Pass** enforces biometric step-up for expensive calls. A **Chainlink CRE** workflow auto-reconciles yield to repay the credit reserve. **100% free upstream LLM routing** via OpenRouter `:free` models, Groq, or Gemini ensures zero API costs.
+A user deposits **$10+ USDC** (with UI presets for $50, $100, $250, or Custom) into a vault, gets an instant credit advance (14 days of projected 5% APY yield — e.g., $0.095 for $50, $0.192 for $100), and receives a drop-in OpenAI/Anthropic-compatible API key (`https://untouched.dev/v1`). The principal stays isolated and *untouched* — only yield pays for AI prompts via **Circle Nanopayments**. Calls over the per-call cap are rejected and cost nothing. A **Chainlink CRE** workflow auto-reconciles yield to repay the credit reserve. **100% free upstream LLM routing** via OpenRouter `:free` models, Groq, or Gemini ensures zero API costs.
 
 **Target Sponsors (3 slots):**
 
 | Slot | Sponsor | Prize Pool | Key Integration |
 |------|---------|-----------|-----------------|
 | 1 | **Arc** | $9,000 (3 tracks) | Arc Studio contracts, Marketplace Discovery API, Circle Nanopayments |
-| 2 | **World** | $7,500 (2 tracks) | World IDKit (Sybil gate) + Agent Pass (biometric step-up) |
+| 2 | **Chainlink** | CRE | Yield reconciliation |
 | 3 | **Chainlink** | $5,000 (CRE track) | Onchain oracle reads (`AggregatorV3Interface`) + CRE workflow |
 
 ---
@@ -49,7 +49,7 @@ A user deposits **$10+ USDC** (with UI presets for $50, $100, $250, or Custom) i
 │  │  • API Key + Base URL    │   │  • Green Safe Box ($10+)    │     │
 │  │  • AI Playground         │   │  • Blue Yield Battery       │     │
 │  │  • Vault Telemetry       │   │  • Spend Slider             │     │
-│  │  • 14-Day Simulator      │   │  • World ID Step-Up Modal   │     │
+│  │  • 14-Day Simulator      │   │  • Deposit and spend cap    │     │
 │  └────────────┬─────────────┘   └──────────────┬──────────────┘     │
 │               │          Split-Screen: /demo    │                   │
 └───────────────┼─────────────────────────────────┼───────────────────┘
@@ -60,8 +60,8 @@ A user deposits **$10+ USDC** (with UI presets for $50, $100, $250, or Custom) i
 │                                                                     │
 │  /api/v1/chat/completions   ← OpenAI/Anthropic-compatible proxy    │
 │  /api/discovery             ← Arc Marketplace Discovery            │
-│  /api/world/verify-idkit    ← World IDKit server-side verify       │
-│  /api/world/step-up-decision← Agent Pass approve/block             │
+│  /api/v1/chat/completions   ← policy, then the LLM provider        │
+│  /api/vault/*               ← deposit, withdraw, status            │
 │  /api/vault/*               ← Contract interactions                │
 │  /api/simulate              ← 14-day fast-forward                  │
 │  /api/events                ← SSE event stream                     │
@@ -77,7 +77,7 @@ A user deposits **$10+ USDC** (with UI presets for $50, $100, $250, or Custom) i
 │  ARC TESTNET (5042002)   │ │  EXTERNAL SERVICES                │
 │                          │ │                                   │
 │  PrincipalCreditVault    │ │  Circle GatewayWallet             │
-│  MockUSYCOracle          │ │  World ID Verification API        │
+│  MockUSYCOracle          │ │  LLM providers                    │
 │  Arc USDC (0x3600…)      │ │  Chainlink CRE Workflow           │
 └──────────────────────────┘ │  OpenAI / Anthropic / OpenRouter  │
                              │  Groq / Gemini (free tier)        │
@@ -106,9 +106,9 @@ globalThis.__untouchedSSE ??= new EventEmitter();
 export const sseBus = globalThis.__untouchedSSE;
 ```
 
-**Why:** Without this, `/api/v1/chat/completions` would write to one Map instance while `/api/world/step-up-decision` reads from a different one — the step-up Promise would never resolve, the battery would never update, and the SSE stream would miss events. The following routes **must** share the exact same memory space:
+**Why:** Vault routes, chat, and SSE must share one in-memory store. Otherwise a deposit in one route is invisible to chat in another. The following routes **must** share the exact same memory space:
 - `/api/v1/chat/completions` (reads/writes user state, emits SSE)
-- `/api/world/step-up-decision` (resolves pending approval Promise, emits SSE)
+- `/api/vault/status` (reads the same user record)
 - `/api/vault/simulate` (updates battery, emits SSE)
 - `/api/events` (reads SSE EventEmitter to stream to clients)
 
@@ -136,7 +136,7 @@ On Arc Testnet (`5042002`), **USDC is the native gas token**. If the Agent Signe
 
 ### G3 — Promise-Based HTTP Hold for Step-Up Flow
 
-When a prompt costs more than the user's `maxPerCallUsdc` (e.g., $0.020 > $0.005), the `/api/v1/chat/completions` route must **hold the HTTP connection open** while the Mobile Companion displays the World ID Agent Pass step-up modal.
+When a prompt costs more than the user's `maxPerCallUsdc` (e.g., $0.020 > $0.005), `/api/v1/chat/completions` returns 403 immediately. Nothing is spent.
 
 **Rule:** Implement a Promise-based hold pattern with a 60-second timeout:
 
@@ -164,13 +164,13 @@ if (policyResult === 'REQUIRES_STEP_UP') {
 
   // 5. Handle outcome
   if (decision.action === 'BLOCKED') {
-    return Response.json({ error: 'Blocked by World ID Agent Pass' }, { status: 403 });
+    return Response.json({ error: 'Blocked by spend policy' }, { status: 403 });
   }
   // else: sign Nanopayment, call LLM, stream response...
 }
 ```
 
-**The other side — `/api/world/step-up-decision`:**
+**Spend policy:**
 ```
 // 1. Read the pending approval from globalThis store (G1)
 const pending = store.get(userId).pendingApproval;
@@ -188,27 +188,6 @@ sseBus.emit('STEP_UP_RESOLVED', { status: 'APPROVED' });
 - **Timeout (60s):** Return HTTP `408 Request Timeout` with a `TIMED_OUT` receipt.
 - **User disconnects:** Clean up the pending approval from the store.
 - **Multiple concurrent step-ups:** Each `PendingApproval` is keyed by a unique `challengeId`.
-
-### G4 — Mandatory World Developer Feedback Debrief
-
-World's hackathon bounty rules require a dedicated developer feedback debrief section in the project README. Omitting this can result in prize disqualification even if the integration is technically correct.
-
-**Rule:** In Phase 5.4 (`README.md`), include a section titled exactly:
-
-```markdown
-## World ID & Agent Pass Developer Feedback Debrief
-```
-
-This section must answer the following questions (paraphrased from World's standard hackathon debrief template):
-
-1. **What did you build with World ID / Agent Pass?** — One paragraph describing the integration.
-2. **Which verification level(s) did you use and why?** — e.g., Orb / Device / Cloud, and rationale.
-3. **What was the developer experience like?** — Honest feedback on docs, SDKs, error messages, onboarding.
-4. **What challenges did you encounter?** — Specific bugs, unclear docs, missing features.
-5. **What would you improve about the World ID / Agent Pass developer experience?** — Constructive suggestions.
-6. **Would you use World ID / Agent Pass in a production app? Why or why not?** — Honest assessment.
-
-**Impact on Phases:** Phase 5.4 (README.md) is updated below to include this as a mandatory sub-task.
 
 ---
 
@@ -231,8 +210,7 @@ This section must answer the following questions (paraphrased from World's stand
   # Circle / Arc
   npm i @circle-fin/x402-batching
 
-  # World ID
-  npm i @worldcoin/idkit
+  npm i ethers viem
 
   # Chainlink (Solidity interface only — used in contracts)
   # npm i @chainlink/contracts (or inline interface)
@@ -261,8 +239,7 @@ This section must answer the following questions (paraphrased from World's stand
   │       ├── v1/chat/completions/route.ts
   │       ├── discovery/route.ts
   │       ├── world/
-  │       │   ├── verify-idkit/route.ts
-  │       │   └── step-up-decision/route.ts
+  │       │   └── (removed)
   │       ├── vault/
   │       │   ├── deposit/route.ts
   │       │   ├── withdraw/route.ts
@@ -275,7 +252,7 @@ This section must answer the following questions (paraphrased from World's stand
   │   │   ├── SafeBoxCard.tsx           # Green $50 card
   │   │   ├── YieldBatteryCard.tsx      # Blue $0.095 card
   │   │   ├── SpendSlider.tsx
-  │   │   ├── StepUpModal.tsx           # World ID Agent Pass modal
+  │   │   ├── (mobile vault lives in src/app/mobile)
   │   │   └── ReceiptFeed.tsx
   │   ├── pc/
   │   │   ├── PcDashboard.tsx
@@ -300,7 +277,7 @@ This section must answer the following questions (paraphrased from World's stand
   │   ├── nanopayments.ts             # Circle x402 batching integration
   │   ├── discovery.ts                 # Arc Marketplace Discovery client
   │   ├── policy-engine.ts            # Cost check + step-up routing
-  │   ├── world-id.ts                  # World IDKit + Agent Pass helpers
+  │   ├── policy-engine.ts             # per-call cap and battery check
   │   ├── sse.ts                       # SSE event bus
   │   ├── constants.ts                 # Chain config, addresses, costs
   │   └── types.ts                     # Shared TypeScript types
@@ -329,10 +306,8 @@ This section must answer the following questions (paraphrased from World's stand
   # Agent Signer (backend only)
   AGENT_SIGNER_PRIVATE_KEY=
 
-  # World ID
-  NEXT_PUBLIC_WORLD_APP_ID=
-  WORLD_ACTION_IDKIT=verify-human-deposit
-  WORLD_ACTION_AGENT_PASS=approve-high-spend-prompt
+  # LLM providers (at least one)
+  OPENROUTER_API_KEY=
 
   # LLM Keys (Enhancement 2 — free tier routing)
   OPENAI_API_KEY=
@@ -371,9 +346,9 @@ This section must answer the following questions (paraphrased from World's stand
   - Constructor: `(address _usdc, address _usycOracle)`
   - **⮕ Enhancement 1:** `MIN_DEPOSIT_USDC = 10_000000` ($10 minimum). No hardcoded $50 cap — any amount ≥ $10 is accepted. The advance formula scales linearly: `advance = (amountUsdc * 500 * 14) / (10000 * 365)`. Examples: $10→$0.0192, $50→$0.0959, $100→$0.1918, $250→$0.4795.
   - `fundReservePool(uint256 amountUsdc)` — protocol operator seeds CreditReservePool
-  - `depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 worldIdNullifier)`:
+  - `depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 nullifier)`:
     - `require(amountUsdc >= MIN_DEPOSIT_USDC)` — enforces $10 minimum
-    - Sybil check: `require(!usedWorldIdNullifiers[worldIdNullifier])`
+    - Reuse check: `require(!usedNullifiers[nullifier])`
     - Reads `usycOracle.latestRoundData()` (**onchain state-changing read — Chainlink requirement**)
     - Mints shares: `shares = (amountUsdc * 1e20) / currentNav`
     - Computes advance dynamically: `advance = (amountUsdc * 500 * 14) / (10000 * 365)`
@@ -431,14 +406,14 @@ This section must answer the following questions (paraphrased from World's stand
   - Arc chain config for Viem/Wagmi
 
 - [x] **2.2 — Agent Signer EOA Manager (`src/lib/agent-store.ts`)** ⚠️ **G1 + G2**
-  - **⮕ G1:** Attach the state Map to `globalThis.__untouchedStore` so all API routes (`/api/v1/chat/completions`, `/api/world/step-up-decision`, `/api/vault/simulate`, `/api/events`) share the exact same memory space. Never use a module-level `const store = new Map()` — Next.js 15 App Router may create separate module instances per route.
+  - **⮕ G1:** Attach the state Map to `globalThis.__untouchedStore` so chat, vault, and SSE routes share one memory space. Never use a module-level `const store = new Map()` — Next.js 15 App Router may create separate module instances per route.
   - Generate isolated Agent Signer EOA per user (`viem` `generatePrivateKey()` + `privateKeyToAccount`)
   - In-memory store (Map) tracking per-user:
     - `principalUsdc` (variable — $10, $50, $100, $250, or custom ≥ $10)
     - `maxBatteryCapacityUsdc` (= advance for their deposit: `principal * 500 * 14 / (10000 * 365)`)
     - `yieldBatteryUsdc` (starts at `maxBatteryCapacityUsdc`, depletes with each prompt)
     - `unpaidAdvanceUsdc` (= `maxBatteryCapacityUsdc` initially)
-    - `maxPerCallUsdc` (default $0.005), `worldIdVerified`
+    - `maxPerCallUsdc` (default $0.005)
     - `receipts: Receipt[]`, `pendingApproval: PendingApproval | null`
     - `pendingApproval.resolver: ((decision: StepUpDecision) => void) | null` ← **G3** Promise resolver
   - **The Agent Signer EOA never has allowance over principal** — only holds the advance credit
@@ -486,9 +461,9 @@ This section must answer the following questions (paraphrased from World's stand
     4. **Auto-approve path**: Sign Nanopayment → call upstream LLM via resolved provider → stream response → deduct from battery → broadcast SSE update → return response + `x402Receipt`
     5. **Step-up path** ⚠️ **G3 — Promise-Based HTTP Hold:**
        - Create a `PendingApproval` with a `Promise.withResolvers<StepUpDecision>()` — store the `resolver` function in the `globalThis.__untouchedStore` (G1) under the user's `pendingApproval`
-       - Immediately emit `STEP_UP_REQUESTED` SSE event via `globalThis.__untouchedSSE` (G1) so the Mobile Companion slides up the World ID Agent Pass modal
+       - Return 403. Do not hold the request.
        - **Hold the HTTP connection open** by awaiting the Promise with a 60-second timeout via `Promise.race([promise, timeoutPromise])`
-       - When `/api/world/step-up-decision` calls `resolver()` (G1 guarantees same Promise reference), the await unblocks:
+       - The policy decision returns immediately. There is no second request to unblock:
          - **BLOCKED →** Return HTTP `403 Forbidden`, log Crimson receipt, battery unchanged
          - **APPROVED →** Sign Nanopayment, call LLM, stream response, deduct battery
        - **TIMEOUT (60s) →** Return HTTP `408 Request Timeout`, log a `TIMED_OUT` receipt, clean up `pendingApproval`
@@ -505,42 +480,19 @@ This section must answer the following questions (paraphrased from World's stand
 
 ---
 
-## Phase 3 — World ID Verification Flows
+## Phase 3 — Spend policy
 
-**Goal:** Implement both World ID flows with the **mandatory Blocked/Denied path** for the demo.
+**Goal:** Reject calls that exceed the per-call cap or the remaining yield balance. No second device and no hold on the HTTP request.
 
 ### Tasks
 
-- [ ] **3.1 — World IDKit Deposit Gate (`/api/world/verify-idkit/route.ts`)**
-  - Receive `@worldcoin/idkit` proof from frontend registration flow
-  - Server-side verify against World Developer Portal API
-  - Extract `nullifierHash` → pass to `depositWithCreditAdvance()` on-chain
-  - 1 human = 1 active credit line (prevents Sybil drain of CreditReservePool)
-  - Return verified status + nullifier to frontend
-
-- [ ] **3.2 — Agent Pass Step-Up Decision (`/api/world/step-up-decision/route.ts`)** ⚠️ **G1 + G3**
-  - **⮕ G1 + G3:** This route is the **resolver side** of the Promise-based HTTP hold. It reads `globalThis.__untouchedStore` (G1) to find the user's `pendingApproval`, then calls `pendingApproval.resolver(decision)` which unblocks the awaiting `/api/v1/chat/completions` handler (G3). Both routes **must** reference the same `globalThis` singleton — if they don't, the resolver fires on a different Promise instance and the HTTP hold never unblocks.
-  - Receives decision from Mobile Companion App modal:
-  - **Path 1 — REJECT / BLOCKED (Mandatory for World bounty)**:
-    - `action: "REJECT_OR_UNVERIFIED"`
-    - Marks pending request as `BLOCKED_BY_POLICY`
-    - Agent Signer signs **zero** Nanopayment
-    - Broadcasts `STEP_UP_RESOLVED` SSE event with `status: "BLOCKED"`
-    - Returns HTTP `403 Forbidden: Blocked by Untouched Spend Policy & World ID Agent Pass` to the waiting `/v1/chat/completions` caller
-    - Logs a **Crimson Red BLOCKED** receipt on both screens
-    - `yieldBatteryUsdc` unchanged
-  - **Path 2 — APPROVED (with proof)**:
-    - `action: "APPROVE_WITH_PROOF"` + World ID Agent Pass proof
-    - Verifies proof server-side
-    - Agent Signer EOA signs the `$0.020` EIP-3009 Nanopayment
-    - Upstream LLM call executes and streams response
-    - Broadcasts `STEP_UP_RESOLVED` SSE event with `status: "APPROVED"`
-    - Logs a **Green STEP-UP APPROVED** receipt
-    - Deducts from `yieldBatteryUsdc`
-
-- [ ] **3.3 — World ID React Components**
-  - `<WorldIDKitButton />` — triggers IDKit widget for initial deposit verification
-  - `<AgentPassModal />` — slide-up modal on mobile with Block + Approve buttons
+- [x] **3.1 — Policy engine (`src/lib/policy-engine.ts`)**
+  - Estimate cost from the resolved model
+  - `403` when the estimate is over `maxPerCallUsdc` ($0 spent)
+  - `402` when the yield balance cannot cover the estimate
+- [x] **3.2 — Deposit nullifier**
+  - `depositWithCreditAdvance` requires a unique nonzero `bytes32`
+  - Reuse reverts with `NullifierAlreadyUsed`
 
 ---
 
@@ -580,14 +532,14 @@ This section must answer the following questions (paraphrased from World's stand
 - [ ] **4.B.3 — Spend Controls Card**
   - Interactive slider: `$0.001` → `$0.050` (default `$0.005`)
   - Daily cap badge: `$0.050 / day`
-  - World ID status pill: `🟢 Verified Human (1 Credit Line Active)`
+  - Spend cap shown next to the battery
 
-- [ ] **4.B.4 — World ID Agent Pass Step-Up Modal**
+- [ ] **4.B.4 — Blocked receipt**
   - Slides up from bottom when step-up SSE event received
   - Shows: calling app, model, tool, cost, impact on savings ($0.00)
   - Two buttons:
     - `🚫 Block Request (Demo Denied Path)` → Crimson Red result
-    - `🌐 Approve with World ID Agent Pass` → Emerald Green result
+    - Over-cap calls show a $0 receipt. There is no approve step.
 
 - [ ] **4.B.5 — Receipt Feed**
   - Apple Wallet–style list: model + tool, cost, savings balance, timestamp
@@ -654,34 +606,15 @@ This section must answer the following questions (paraphrased from World's stand
   - [ ] Advanced stablecoin logic (principal isolation, reserve float, NAV reconciliation, early-exit)
   - [ ] Reusable module documented
 
-  **World ($7,500 — 2 tracks):**
-  - [ ] World ID Agent Pass enforces step-up in backend
-  - [ ] **Denied/Blocked path demonstrated in demo** (HTTP 403, $0.00 spent)
-  - [ ] **Approved path demonstrated in demo** ($0.020 paid, response streams)
-  - [ ] Server-side IDKit proof verification
-  - [ ] Nullifier hash passed to `depositWithCreditAdvance()` (1 human = 1 credit line)
-  - [ ] **⮕ G4:** `## World ID & Agent Pass Developer Feedback Debrief` section present in README with all 6 debrief answers
-
   **Chainlink ($5,000 — CRE track):**
   - [ ] **No frontend-only price feed reads** (anti-disqualification)
   - [ ] `usycOracle.latestRoundData()` called inside `deposit()` and `reconcileAndRepay()` — mutating onchain storage
   - [ ] CRE workflow script included (`cre-workflow/reconcile-yield.ts`)
 
-- [ ] **5.4 — README.md** ⚠️ **G4**
-  - Hero banner + tagline
-  - Arc Studio link (prominent, top of file)
-  - Architecture diagram
-  - Setup instructions
-  - Sponsor integration table
-  - Demo video link
-  - **⮕ G4 — Mandatory World Developer Feedback Debrief:** Include a dedicated section titled exactly `## World ID & Agent Pass Developer Feedback Debrief` answering all 6 of World's standard hackathon debrief questions:
-    1. What did you build with World ID / Agent Pass?
-    2. Which verification level(s) did you use and why?
-    3. What was the developer experience like?
-    4. What challenges did you encounter?
-    5. What would you improve about the World ID / Agent Pass developer experience?
-    6. Would you use World ID / Agent Pass in a production app? Why or why not?
-  - License
+- [ ] **5.4 — README.md**
+  - What the product does
+  - How to run it
+  - API, contracts, and environment variables
 
 - [ ] **5.5 — End-to-End Demo Rehearsal (≤ 3 minutes)**
   Verify all 4 beats work on Split-Screen view in < 90 seconds each.
@@ -695,10 +628,9 @@ This section must answer the following questions (paraphrased from World's stand
 | Beat | Time | PC (Left) | Mobile (Right) | Sponsor Hit |
 |------|------|-----------|----------------|-------------|
 | **0** | 0:00–0:20 | Show Arc Studio (`studio.arc.com`) with contracts | — | Arc Track A, C |
-| **1** | 0:20–0:50 | — | World IDKit verify → Deposit $50 USDC (or $100, $250) → Battery appears (scales to deposit) | World IDKit, Arc |
+| **1** | 0:20–0:50 | — | Deposit $50 USDC. Battery appears. | Arc |
 | **2** | 0:50–1:20 | Send `gpt-4o-mini` + Arc Marketplace Search ($0.001) | Battery ticks down. Receipt appears. Savings unchanged. | Arc Track B, Nanopayments |
-| **3a** | 1:20–1:50 | Send `claude-3-opus-deep-research` ($0.020) | Step-up modal → tap **🚫 Block** → Crimson **BLOCKED** receipt, $0.00 spent | World Agent Pass **Denied Path** |
-| **3b** | 1:50–2:20 | Send `claude-3-opus-deep-research` again ($0.020) | Step-up modal → tap **🌐 Approve** → Green receipt, response streams on PC | World Agent Pass **Approved Path** |
+| **3** | 1:20–2:20 | Send a model over the per-call cap | Receipt shows $0.00 spent. Principal unchanged. | Spend policy |
 | **4** | 2:20–2:50 | Click `⏩ Fast-Forward 14 Days` → CRE reconcile runs | Battery animates back to full. Savings unchanged. | Chainlink CRE, Oracle |
 | **5** | 2:50–3:00 | Show Audit Log: all receipts, $0 principal deducted | — | All sponsors |
 

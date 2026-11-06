@@ -399,18 +399,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setPendingApproval(approval);
     });
 
-    eventSource.addEventListener('step_up_approved', (e) => {
-      const { approvalId } = JSON.parse(e.data);
-      console.log('[SSE] Step-up approved:', approvalId);
-      setPendingApproval(null);
-    });
-
-    eventSource.addEventListener('step_up_denied', (e) => {
-      const { approvalId } = JSON.parse(e.data);
-      console.log('[SSE] Step-up denied:', approvalId);
-      setPendingApproval(null);
-    });
-
     return () => {
       eventSource.close();
       setConnected(false);

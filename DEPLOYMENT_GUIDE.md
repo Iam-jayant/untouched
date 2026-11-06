@@ -44,7 +44,6 @@ Run `npm run build` to verify 0 TypeScript errors and test `POST /api/vault/auth
 - [x] `src/lib/supabase.ts` - Dual-mode client
 - [x] `src/lib/agent-store.ts` - Never-404 vault resolution
 - [x] `src/app/api/v1/chat/completions/route.ts` - 6-step InfrGate trace
-- [x] `src/app/api/world/step-up-decision/route.ts` - Cross-lambda sync
 - [x] `src/app/dashboard/page.tsx` - Replay button + execution trace
 - [x] `scripts/verify-final.mjs` - E2E verification script
 - [x] `.env.example` - Complete ENV var documentation
@@ -122,11 +121,6 @@ npm run build
    
    # Agent Signer (⚠️ GENERATE NEW FOR PRODUCTION)
    AGENT_SIGNER_PRIVATE_KEY=YOUR_PRIVATE_KEY_HERE
-   
-   # World ID
-   NEXT_PUBLIC_WORLD_APP_ID=YOUR_APP_ID
-   WORLD_ACTION_IDKIT=verify-human-deposit
-   WORLD_ACTION_AGENT_PASS=approve-high-spend-prompt
    
    # LLM Keys
    OPENROUTER_API_KEY=sk-or-v1-...
@@ -222,7 +216,7 @@ npm run build
    
    # ✅ Returns 402 (Payment Required)
    # ✅ executionTrace.steps[3].status = "failed"
-   # ✅ Message: "World ID required for $0.020+ spend"
+   # ✅ Message: blocked by the per-call spend cap, or 402 if the battery is empty
    ```
 
 4. **Routine Model Auto-Approve**
@@ -234,7 +228,7 @@ npm run build
    
    # ✅ Returns 200
    # ✅ executionTrace.steps[3].status = "passed"
-   # ✅ No World ID required
+   # ✅ Allowed when the estimate is within the cap and the battery
    ```
 
 5. **Idempotency Enforcement**
@@ -257,12 +251,10 @@ npm run build
    # ✅ No automatic 5s window (demo-safe)
    ```
 
-6. **Cross-Lambda Sync**
+6. **Vault status**
    ```bash
-   # Desktop: Trigger heavy model (creates pending approval)
-   # Mobile: Approve via /step-up-decision
-   # Desktop: Poll status via Supabase (1s intervals)
-   # ✅ Approval syncs across lambdas in <2s
+   curl "https://your-project.vercel.app/api/vault/status?apiKey=YOUR_API_KEY"
+   # ✅ Returns principal, battery, and recent receipts
    ```
 
 7. **Execution Trace (6 Steps)**
@@ -308,16 +300,10 @@ if (vaultIdOrKey.startsWith('unt_live_')) {
 }
 ```
 
-### Issue: Heavy models auto-approve (no step-up)
+### Issue: A heavy model is allowed when it should be blocked
 
 **Solution:**
-```bash
-# Check src/lib/constants.ts → resolveModel() function
-# Verify model name regex matches:
-if (/opus|o3-pro|claude-3-opus/i.test(modelName)) {
-  return { tier: 'heavy', cost: 0.020 };
-}
-```
+The cap is `maxPerCallUsdc` on the user (default $0.005). `resolveModel()` in `src/lib/constants.ts` maps Opus and o-series names to the heavy price. If the estimated cost is under the cap and the battery can cover it, the call is allowed.
 
 ### Issue: Idempotency not working
 
@@ -349,11 +335,10 @@ curl -H "Idempotency-Key: YOUR_KEY" ...
 1. **API Response Times**
    - Routine models: <2s
    - Heavy models: 2-30s (varies by model)
-   - Step-up approvals: <5s (cross-lambda sync)
 
 2. **Success Rates**
-   - Routine auto-approve: ~100%
-   - Heavy step-up approve: ~90% (user-dependent)
+   - Calls inside the cap and battery: expected to succeed
+   - Calls over the cap: 403, $0 spent
    - Custom key resolution: 100% (never 404)
 
 3. **Database Health**
@@ -373,7 +358,7 @@ curl -H "Idempotency-Key: YOUR_KEY" ...
 # Key events to monitor:
 # ✅ "InfrGate trace complete (6 steps)" - success
 # ⚠️  "Supabase not configured, using in-memory" - fallback active
-# ❌ "World ID verification failed" - step-up denied
+# ❌ Policy or provider errors — check the execution trace on the receipt
 ```
 
 ---
@@ -383,7 +368,6 @@ curl -H "Idempotency-Key: YOUR_KEY" ...
 - [ ] `AGENT_SIGNER_PRIVATE_KEY` - Unique per environment (not reused from dev)
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` - Never exposed to frontend
 - [ ] API keys - Rotated regularly (monthly)
-- [ ] World ID App ID - Production app (not test app)
 - [ ] OpenRouter/Groq keys - Rate limits configured
 - [ ] Supabase RLS - Policies enabled (optional, but recommended)
 
@@ -397,7 +381,7 @@ curl -H "Idempotency-Key: YOUR_KEY" ...
 - [x] ENV vars configured in Vercel
 - [x] Mobile pairing works (cross-lambda sync)
 - [x] Custom keys never 404
-- [x] Heavy models trigger step-up
+- [x] Heavy models over the cap are rejected
 - [x] Routine models auto-approve
 - [x] Idempotency works with explicit header
 - [x] Execution trace returns 6 steps
@@ -429,7 +413,7 @@ curl -H "Idempotency-Key: YOUR_KEY" ...
 2. **User Onboarding**
    - Share deposit link: `/landing`
    - Provide API documentation: Drop-in snippet from `/dashboard`
-   - Encourage World ID setup for heavy models
+   - Heavy models are rejected when they exceed the per-call cap
 
 3. **Feature Enhancements** (Future)
    - Add more Arc MCP tools (web search, predictions)

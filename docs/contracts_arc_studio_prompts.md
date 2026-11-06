@@ -32,9 +32,9 @@ Generate two contracts in a single file or linked files with unit tests:
   - uint256 totalYieldRepaidUsdc (6 decimals)
   - address agentSignerEOA (isolated EOA wallet for Circle Gateway Nanopayments)
   - uint256 maxPerCallLimitUsdc (default 5000 = $0.005 USDC)
-  - bool worldIdVerified
-- Function depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 worldIdNullifier):
-  - Requires !usedNullifiers[worldIdNullifier] to prevent Sybil draining of the CreditReservePool.
+  - bool hasPosition
+- Function depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 nullifier):
+  - Requires !usedNullifiers[nullifier] to prevent Sybil draining of the CreditReservePool.
   - Reads current NAV price from MockUSYCOracle.latestRoundData() (causes onchain state change).
   - Transfers amountUsdc from msg.sender into the vault and calculates usycShares = (amountUsdc * 1e20) / currentNav.
   - Calculates 14-day projected yield at 5% APY: advanceUsdc = (amountUsdc * 500 * 14) / (10000 * 365).
@@ -118,7 +118,7 @@ contract PrincipalCreditVault {
     AggregatorV3Interface public immutable usycOracle;
 
     uint256 public creditReservePoolUsdc;
-    mapping(bytes32 => bool) public usedWorldIdNullifiers;
+    mapping(bytes32 => bool) public usedNullifiers;
 
     struct UserPosition {
         uint256 principalUsdc;        // 6 decimals (e.g., 50_000000 = $50.00)
@@ -128,7 +128,7 @@ contract PrincipalCreditVault {
         uint256 totalYieldRepaidUsdc; // 6 decimals
         address agentSignerEOA;       // Segregated EOA for Circle Gateway Nanopayments
         uint256 maxPerCallLimitUsdc;  // 6 decimals (default 5000 = $0.005)
-        bool worldIdVerified;
+        bool hasPosition;
     }
 
     mapping(address => UserPosition) public positions;
@@ -168,11 +168,11 @@ contract PrincipalCreditVault {
     function depositWithCreditAdvance(
         uint256 amountUsdc,
         address agentSignerEOA,
-        bytes32 worldIdNullifier
+        bytes32 nullifier
     ) external {
         require(amountUsdc > 0, "Zero deposit");
         require(agentSignerEOA != address(0) && agentSignerEOA != msg.sender, "Agent EOA must be isolated");
-        require(!usedWorldIdNullifiers[worldIdNullifier], "World ID already claimed advance");
+        require(!usedNullifiers[nullifier], "Nullifier already used");
 
         (, int256 navAnswer, , , ) = usycOracle.latestRoundData();
         require(navAnswer > 0, "Invalid oracle NAV");
@@ -180,7 +180,7 @@ contract PrincipalCreditVault {
 
         require(usdc.transferFrom(msg.sender, address(this), amountUsdc), "Deposit transfer failed");
 
-        usedWorldIdNullifiers[worldIdNullifier] = true;
+        usedNullifiers[nullifier] = true;
 
         // 14-day projected yield at 5% APY: amount * 5% * 14 / 365
         uint256 advanceUsdc = (amountUsdc * 500 * 14) / (10000 * 365);
@@ -195,7 +195,7 @@ contract PrincipalCreditVault {
         pos.unpaidAdvanceUsdc += advanceUsdc;
         pos.agentSignerEOA = agentSignerEOA;
         pos.maxPerCallLimitUsdc = 5000; // Default $0.005 per call
-        pos.worldIdVerified = true;
+        pos.hasPosition = true;
 
         creditReservePoolUsdc -= advanceUsdc;
         require(usdc.transfer(agentSignerEOA, advanceUsdc), "Advance transfer failed");

@@ -6,7 +6,7 @@
   * **Backgrounds:** Pure black (`#000000` base) with elevated cards (`#12141D`), subtle 1px borders in white/10 opacity.
   * **Safe Principal Accent (The "Green Box"):** Emerald Vault Green (`#10B981` primary, `#059669` border glow) — always associated with locked, untouchable savings.
   * **Yield Battery Accent (The "Blue Box"):** Electric Cyan/Blue (`#3B82F6` to `#06B6D4` gradient) — represents rechargeable API energy and Nanopayment flow.
-  * **Warning / Step-Up Alert:** Amber Gold (`#F59E0B`) when an API call pauses for World ID Agent Pass approval.
+  * **Blocked call:** Amber (`#F59E0B`) when an API call is rejected by the spend cap.
   * **Blocked / Denied Path:** Crimson Red (`#EF4444`) when a rogue or high-cost prompt is blocked.
   * **Accent Gradients:** Subtle gradient overlays on cards for visual depth (emerald-500/10, cyan-500/10, amber-500/10).
 * **Typography:**
@@ -27,7 +27,7 @@
 ## 2. Why We Show Both PC and Phone in the Demo
 During the ETHGlobal demo video, we show **both views working together in real time** (or via a built-in **"Split-Screen Demo Mode"** toggle in the top navbar so judges can see PC + Mobile side-by-side on one monitor!):
 1. **PC View ("Developer Command Center & Usage Tracker"):** Where developers generate their API key, test prompts in the Playground (or Cursor IDE), inspect live Arc Marketplace Discovery tools, and track token/Nanopayment telemetry.
-2. **Mobile View ("Consumer Wallet & Biometric Remote Control"):** Directly satisfies Arc's **$3,000 Best Mobile Web Consumer Agent** requirement—where users deposit `$50 USDC`, adjust their spend-limit slider in plain English, and approve or block high-cost prompts with **World ID Agent Pass**.
+2. **Mobile view:** Deposit `$50 USDC`, set the spend-limit slider, and watch receipts. Calls over the limit fail in the gateway.
 
 ---
 
@@ -50,18 +50,10 @@ During the ETHGlobal demo video, we show **both views working together in real t
 ### B. Consumer Spend Controls Card (Mandatory for Arc Track 2)
 * **Interactive Slider:** `Auto-Approve Prompt Limit: $0.005 / call` (Range: `$0.001` to `$0.050`).
 * **Daily Cap Badge:** `Daily Yield Cap: $0.050 / day`.
-* **World ID Status Pill:** `🟢 Verified Human (1 Credit Line Active)` + `🛡️ World ID Agent Pass Active for >$0.005 calls`.
+* **Spend cap:** shows the current per-call limit. Calls above it are rejected.
 
-### C. Real-Time Push Approval Modal (World ID Agent Pass Step-Up)
-* Automatically slides up from the bottom of the phone screen whenever the PC sends a prompt costing `> $0.005` (e.g., `Claude Opus + Deep Research — $0.020 USDC`).
-* Shows:
-  * Calling App: `Cursor IDE / Untouched API Key (unt_live_...8f2a)`
-  * Requested Model & Tool: `Claude Opus + Arc Marketplace Exa Search`
-  * Cost: `$0.0200 USDC` *(Exceeds your $0.005 auto-approve limit)*
-  * Impact on $50 Savings: `$0.00 (Principal Untouched)`
-* **Two Big Action Buttons (For Demoing Both Paths):**
-  1. **`🚫 Block Request (Demo Denied Path)`** -> Turns card Crimson Red: `"Blocked by Spend Policy — $0.0000 Spent"`.
-  2. **`🌐 Approve with World ID Agent Pass`** -> Triggers World ID verification -> Turns card Emerald Green: `"Approved — $0.0200 Paid via Nanopayment"`.
+### C. Blocked-call state
+* A prompt over the per-call cap does not open a modal. The gateway returns 403 and the receipt list shows `$0.0000` spent.
 
 ### D. Compact Mobile Receipt Feed
 * Clean Apple-Wallet style list of recent prompts:
@@ -98,11 +90,11 @@ Designed for desktop (`1440px+`) with a 3-column observability layout:
 
 ### Right Column: Live PC Usage Tracker & Audit Log
 * Real-time chart comparing **Cumulative AI Value Consumed ($)** vs. **Principal Deducted ($0.00 flat line)**.
-* Live table of every API call with columns: `Timestamp`, `Model + Discovered Tool`, `Cost (USDC)`, `Auth Status (Auto / World ID Pass / Blocked)`, and `EIP-3009 Signature Hash`.
+* Live table of every API call with columns: `Timestamp`, `Model`, `Cost (USDC)`, `Status (Allowed / Blocked)`, and `EIP-3009 Signature Hash`.
 
 ---
 
 ## 5. Built-In "Judge Split-Screen View" (Must-Have Feature)
 Add a prominent toggle button in the top header: **`🖥️+📱 Split-Screen Judge Demo Mode`**.
 * When toggled ON, the browser renders the **PC Developer Command Center on the left (65% width)** and an interactive **iPhone 16 Frame with the Mobile Companion App on the right (35% width)** on the exact same screen.
-* Why: In the 3-minute demo video, the judge watches you send a prompt on the PC (left) and **instantly** sees the battery tick down or the World ID Agent Pass modal pop up on the Phone (right) with zero video splicing!
+* Why: In a demo, a prompt on the PC updates the battery or shows a blocked receipt on the phone without splicing.

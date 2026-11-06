@@ -11,8 +11,8 @@ const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
 const WALLET_ADDRESS = '0xce86a572686F22E7D1B9f6763c7B695F79762854';
 
 const VAULT_ABI = [
-  'function depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 worldIdNullifier)',
-  'function positions(address) view returns (uint256 principalUsdc, uint256 shares, uint256 maxPerCallUsdc, address agentSignerEOA, uint256 unpaidAdvanceUsdc, bytes32 worldIdNullifier)',
+  'function depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 nullifier)',
+  'function positions(address) view returns (uint256 principalUsdc, uint256 shares, uint256 maxPerCallUsdc, address agentSignerEOA, uint256 unpaidAdvanceUsdc, bytes32 nullifier)',
   'function MIN_DEPOSIT_USDC() view returns (uint256)',
   'function owner() view returns (address)',
 ];
@@ -137,7 +137,7 @@ async function checkVault() {
     console.log('  1. You already have a position (contract allows only 1 deposit per address)');
     console.log('  2. USDC not approved');
     console.log('  3. Amount below minimum deposit');
-    console.log('  4. World ID nullifier already used');
+    console.log('  4. Deposit nullifier already used');
     console.log('  5. Contract paused or has insufficient reserve pool\n');
   }
 }

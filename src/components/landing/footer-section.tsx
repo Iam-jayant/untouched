@@ -33,7 +33,7 @@ export function FooterSection() {
               </Link>
 
               <p className="text-white/50 leading-relaxed mb-8 max-w-xs text-sm">
-                Your savings. Your AI API key&apos;s spending power. Separate by design. Built for ETHGlobal Mumbai on Arc, World ID, and Chainlink.
+                Your savings. Your AI API key&apos;s spending power. Separate by design. Built on Arc and Chainlink.
               </p>
 
               <div className="flex gap-6">

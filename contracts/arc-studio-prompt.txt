@@ -36,11 +36,11 @@ Per-user state tracking:
 - `maxPerCallUsdc` — spending limit per AI call (default $0.005 = 5000)
 - `agentSignerEOA` — isolated EOA address for API key
 - `unpaidAdvanceUsdc` — outstanding credit advance owed
-- `worldIdNullifier` — sybil resistance (1 human = 1 credit line)
+- `nullifier` — unique nonzero id, one credit line per nullifier
 
 Global state:
 - `creditReservePool` — USDC pool funding instant credit advances
-- `usedWorldIdNullifiers` mapping — prevents duplicate World ID usage
+- `usedNullifiers` mapping — rejects a nullifier that was already used
 
 ### Core Functions
 
@@ -49,10 +49,10 @@ Global state:
 - Seeds the credit reserve pool with USDC
 - Emits `ReservePoolFunded(uint256 amount)`
 
-**depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 worldIdNullifier)**
+**depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 nullifier)**
 - Require `amountUsdc >= MIN_DEPOSIT_USDC` (enforces $10 minimum)
-- Require `!usedWorldIdNullifiers[worldIdNullifier]` (sybil check)
-- Mark `usedWorldIdNullifiers[worldIdNullifier] = true`
+- Require `!usedNullifiers[nullifier]` (sybil check)
+- Mark `usedNullifiers[nullifier] = true`
 - **CRITICAL: Read `usycOracle.latestRoundData()` onchain** (state-changing oracle read — mandatory for Chainlink CRE track)
 - Mint vault shares: `shares = (amountUsdc * 1e20) / uint256(nav)`
 - **Dynamic advance calculation** (14-day 5% APY yield): `advance = (amountUsdc * 500 * 14) / (10000 * 365)`
@@ -63,7 +63,7 @@ Global state:
   * After gas is paid, exactly `advance` USDC lands in the Gateway balance for a clean UI battery
 - Set `unpaidAdvanceUsdc = advance`
 - Set `maxPerCallUsdc = 5000` (default $0.005)
-- Emit `DepositWithAdvance(address indexed user, uint256 principalUsdc, uint256 advanceUsdc, uint256 shares, address agentSignerEOA, bytes32 worldIdNullifier)`
+- Emit `DepositWithAdvance(address indexed user, uint256 principalUsdc, uint256 advanceUsdc, uint256 shares, address agentSignerEOA, bytes32 nullifier)`
 
 **getAccruedSurplusUsdc(address user) view returns (uint256)**
 - Read `usycOracle.latestRoundData()` to get current NAV
@@ -99,7 +99,7 @@ Global state:
 ### Events
 
 - `ReservePoolFunded(uint256 amount)`
-- `DepositWithAdvance(address indexed user, uint256 principalUsdc, uint256 advanceUsdc, uint256 shares, address agentSignerEOA, bytes32 worldIdNullifier)`
+- `DepositWithAdvance(address indexed user, uint256 principalUsdc, uint256 advanceUsdc, uint256 shares, address agentSignerEOA, bytes32 nullifier)`
 - `YieldReconciled(address indexed user, uint256 surplusUsdc, uint256 repaidUsdc)`
 - `PrincipalWithdrawn(address indexed user, uint256 payoutUsdc, uint256 unpaidShortfallUsdc)`
 - `SpendPolicyUpdated(address indexed user, uint256 newMaxPerCallUsdc, address newAgentSignerEOA)`
@@ -131,7 +131,7 @@ Write comprehensive Foundry unit tests (`UntouchedVault.t.sol`) verifying:
    - Verify payout = `$50 - $0.095890` (principal reduced by unpaid advance shortfall)
    - Verify no revert
 
-5. **World ID Sybil Resistance**:
+5. **Nullifier reuse**:
    - First deposit with nullifier → succeeds
    - Second deposit with same nullifier → reverts
 

@@ -35,7 +35,6 @@ const REQUIRED_FILES = [
   'src/app/api/vault/simulate/route.ts',
   'src/app/api/vault/status/route.ts',
   'src/app/api/vault/withdraw/route.ts',
-  'src/app/api/world/step-up-decision/route.ts',
 ];
 
 const REQUIRED_CONSTANTS = [

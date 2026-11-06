@@ -17,7 +17,7 @@ Phase 2 has been successfully implemented in full. All 7 tasks completed:
 4. ✅ Nanopayments engine (stub implementation ready for @circle-fin/x402-batching)
 5. ✅ Policy engine (step-up auth, deposit-more logic)
 6. ✅ OpenAI-compatible chat completions with G3 (Promise-based HTTP hold, free LLM cascade)
-7. ✅ Vault API routes + World ID step-up decision endpoint
+7. ✅ Vault API routes
 
 ---
 
@@ -114,14 +114,13 @@ Phase 2 has been successfully implemented in full. All 7 tasks completed:
   - 403: Denied (invalid key, unknown model)
   - 503: All providers failed
 
-### Task 2.7: Vault API Routes + World ID
+### Task 2.7: Vault API routes
 
 **Files Created:**
 - `src/app/api/vault/deposit/route.ts` (54 lines)
 - `src/app/api/vault/simulate/route.ts` (34 lines)
 - `src/app/api/vault/status/route.ts` (32 lines)
 - `src/app/api/vault/withdraw/route.ts` (61 lines)
-- `src/app/api/world/step-up-decision/route.ts` (72 lines)
 - `src/app/api/events/route.ts` (14 lines)
 
 **Endpoints:**
@@ -129,7 +128,6 @@ Phase 2 has been successfully implemented in full. All 7 tasks completed:
 - **POST** `/api/vault/simulate` - Simulate deposit calculation (advance + battery)
 - **GET** `/api/vault/status?apiKey=xxx` - Get user status
 - **POST** `/api/vault/withdraw` - Withdraw from balance
-- **POST** `/api/world/step-up-decision` - Approve/deny step-up auth (World ID)
 - **GET** `/api/events` - SSE stream (Authorization: Bearer <apiKey>)
 
 ---
@@ -263,25 +261,6 @@ Content-Type: application/json
 }
 ```
 
-### World ID Step-Up
-
-```bash
-POST /api/world/step-up-decision
-Authorization: Bearer unt_live_demo_key
-Content-Type: application/json
-
-{
-  "approvalId": "approval_1730419200000_abc123",
-  "action": "approve",
-  "proof": {
-    "merkle_root": "0x...",
-    "nullifier_hash": "0x...",
-    "proof": "0x...",
-    "verification_level": "orb"
-  }
-}
-```
-
 ### Server-Sent Events
 
 ```bash
@@ -293,9 +272,7 @@ Authorization: Bearer unt_live_demo_key
 - `heartbeat` - Every 30 seconds
 - `receipt` - After each LLM request
 - `balance_update` - After balance change
-- `pending_approval` - When step-up required
-- `step_up_approved` - When step-up approved
-- `step_up_denied` - When step-up denied
+- `pending_approval` - Reserved. The gateway does not pause calls for approval.
 
 ---
 
@@ -360,12 +337,7 @@ curl -X POST http://localhost:3000/api/vault/deposit \
    - Integrate with deployed PrincipalCreditVault (`0x649a09b10c70fffe9ef5f8d70e5a7de292b793df`)
    - Use real Arc USDC (`0x3600000000000000000000000000000000000000`)
 
-3. **World ID Integration**:
-   - Add @worldcoin/idkit client verification
-   - Implement World ID nullifier validation
-   - Store verified users in agent-store
-
-4. **Nanopayments**:
+3. **Nanopayments**:
    - Replace stub with real @circle-fin/x402-batching once published
    - Implement batch settlement logic
 
@@ -393,7 +365,6 @@ curl -X POST http://localhost:3000/api/vault/deposit \
 - `src/app/api/vault/simulate/route.ts`
 - `src/app/api/vault/status/route.ts`
 - `src/app/api/vault/withdraw/route.ts`
-- `src/app/api/world/step-up-decision/route.ts`
 
 **Scripts & Docs (2):**
 - `scripts/verify-phase2.mjs`
@@ -467,8 +438,7 @@ Chat completions endpoint uses `await callLLM()` to hold the HTTP connection ope
 ## Known Limitations
 
 1. **Nanopayments Stub**: Using mock implementation until @circle-fin/x402-batching is published
-2. **World ID Verification**: Proof validation not yet implemented (TODO in Phase 3)
-3. **On-Chain Deposits**: Currently simulated (will integrate with vault contract in Phase 3)
+2. **On-Chain Deposits**: Currently simulated (will integrate with vault contract in Phase 3)
 4. **LLM API Keys**: Require valid API keys in .env.local for actual LLM calls (mock fallback works without keys)
 
 ---

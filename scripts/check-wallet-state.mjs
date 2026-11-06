@@ -15,7 +15,7 @@ const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
 const RPC_URL = 'https://rpc.testnet.arc.network';
 
 const VAULT_ABI = [
-  'function positions(address) view returns (uint256 principalUsdc, uint256 shares, uint256 maxPerCallUsdc, address agentSignerEOA, uint256 unpaidAdvanceUsdc, bytes32 worldIdNullifier)',
+  'function positions(address) view returns (uint256 principalUsdc, uint256 shares, uint256 maxPerCallUsdc, address agentSignerEOA, uint256 unpaidAdvanceUsdc, bytes32 nullifier)',
 ];
 
 const ERC20_ABI = [
@@ -55,7 +55,7 @@ async function checkWallet() {
     console.log('  Max Per Call USDC:', ethers.utils.formatUnits(position.maxPerCallUsdc, 6));
     console.log('  Agent Signer EOA:', position.agentSignerEOA);
     console.log('  Unpaid Advance USDC:', ethers.utils.formatUnits(position.unpaidAdvanceUsdc, 6));
-    console.log('  World ID Nullifier:', position.worldIdNullifier);
+    console.log('  Nullifier:', position.nullifier);
 
     // Calculate estimated advance (5% APY * 14 days)
     const principalFloat = parseFloat(ethers.utils.formatUnits(position.principalUsdc, 6));

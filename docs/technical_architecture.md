@@ -11,7 +11,7 @@
 |  | - API Key & Base URL Config         |   | - Green Safe Box ($50.00 USDC)    |  |
 |  | - Live Prompt / IDE Playground      |   | - Blue Yield Battery ($0.095)     |  |
 |  | - Real-Time Telemetry & Cost Graph  |   | - Per-Call Spend Slider ($0.005)  |  |
-|  | - Fast-Forward 14d Yield Simulator  |   | - World IDKit & Agent Pass Modal  |  |
+|  | - Fast-Forward 14d Yield Simulator  |   | - Deposit, withdraw, spend cap    |  |
 |  +------------------+------------------+   +-----------------+-----------------+  |
 +---------------------|----------------------------------------|--------------------+
                       |                                        |
@@ -32,7 +32,7 @@
 |                                         |  |                                      |
 | - PrincipalCreditVault.sol (Arc Studio) |  | - Circle GatewayWallet               |
 | - MockUSYC & MockUSYCOracle.sol         |  |   (0x0077777d7EBA4688BDeF3E311...)   |
-| - CreditReservePool (Fronts $0.095)     |  | - World ID Verification API          |
+| - CreditReservePool (Fronts $0.095)     |  | - LLM providers (OpenRouter, Groq, Gemini) |
 | - Arc USDC (0x360000...0000)            |  | - Chainlink CRE Workflow             |
 +-----------------------------------------+  +--------------------------------------+
 ```
@@ -88,8 +88,5 @@ Circle Gateway Nanopayments (`@circle-fin/x402-batching`) require **EOA signatur
 
 ### Scenario B: High-Cost Model (`claude-3-opus` / `deep-research` — Cost `$0.020` > `$0.005` Limit)
 1. Request arrives for `model: "claude-3-opus-deep-research"` (`estimatedCost = $0.020 USDC`).
-2. Policy Engine detects `$0.020 > $0.005` (`LIMIT_EXCEEDED`).
-3. Gateway creates a `PendingApproval` record (`status: "AWAITING_WORLD_ID_STEP_UP"`) and pushes a real-time alert to the **Mobile Companion App** while holding the HTTP request open (or returning a pollable challenge).
-4. **Mobile Screen pops up the World ID Agent Pass Step-Up Modal:**
-   * **Path 1 (Denied / Blocked Path — Mandatory for World Bounty):** User taps **"Reject / Block"** (or submits an unverified proof). Backend marks request `BLOCKED_BY_POLICY`, signs **zero** Nanopayment, logs a red **BLOCKED** receipt on both PC and Phone, and returns HTTP `403 Forbidden: Blocked by Untouched Spend Policy & World ID Agent Pass`.
-   * **Path 2 (Verified / Approved Path):** User completes **World ID Agent Pass** verification on phone -> `/api/world/verify-agent-pass` validates proof -> Agent Signer EOA signs the `$0.020` Nanopayment -> LLM response streams to PC and logs a green **STEP-UP APPROVED** receipt.
+2. Policy engine sees `$0.020 > $0.005`.
+3. The route returns HTTP 403. Nothing is signed and nothing is spent. Raise `maxPerCallUsdc` if that model should be allowed.
