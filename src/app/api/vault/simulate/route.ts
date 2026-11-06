@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(response);
     }
 
-    // Mode 2: Fast-forward 14 days (Chainlink CRE reconcile simulation)
+    // Mode 2: restore the 14-day yield battery
     const apiKey = req.headers.get('authorization')?.replace('Bearer ', '');
     if (!apiKey) {
       return NextResponse.json(
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: '⏩ Fast-forwarded 14 days: Chainlink CRE reconciled USYC yield and repaid Credit Reserve Pool',
+      message: 'Restored the 14-day yield battery',
       principal: user.principal,
       principalUSD: user.principal / 1_000000,
       batteryBefore: previousRemaining,

@@ -45,7 +45,7 @@ During the ETHGlobal demo video, we show **both views working together in real t
    * Big Monospace Value: `$0.0950 USDC`
    * Animated Horizontal Battery Bar (`100% Charged`)
    * Plain-English Counter: `≈ 95 Free AI Prompts Remaining Today`
-   * Sub-badge: `⚡ Auto-refills from your $50 interest via Chainlink`
+   * Sub-badge: `⚡ 14-day yield battery`
 
 ### B. Consumer Spend Controls Card (Mandatory for Arc Track 2)
 * **Interactive Slider:** `Auto-Approve Prompt Limit: $0.005 / call` (Range: `$0.001` to `$0.050`).
@@ -76,8 +76,8 @@ Designed for desktop (`1440px+`) with a 3-column observability layout:
      * Outstanding Yield Advance: `$0.095000 USDC`
      * Isolated Agent Signer EOA (`GatewayWallet`): `0x71C...9A2`
 3. **"Fast-Forward 14 Days" Simulator Card (Judge Demo Cheat Code):**
-   * Button: **`⏩ Simulate +14 Days USYC Yield & Run Chainlink CRE Reconcile`**
-   * Clicking this updates `MockUSYCOracle.sol` NAV from `$1.000000` to `$1.001918`, triggers the **Chainlink CRE** `reconcileAndRepay()` workflow onchain, repays the `CreditReservePool`, and visibly animates the Blue Yield Battery refilling back to `$0.0950 USDC` on both PC and Phone!
+   * Button: **`⏩ Simulate +14 Days`**
+   * Clicking this restores the yield battery on both PC and phone. Principal stays in the vault.
 
 ### Center Column: Live AI & MCP Prompt Playground
 1. **Model & Cost Selector:**

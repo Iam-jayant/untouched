@@ -28,10 +28,6 @@ Not targeted. The phone screen is stake, yield battery, withdraw, and usage only
 
 ### Track C: Best Smart Contracts with Advanced Stablecoin Logic, In Arc Studio (\$3,000)
 
-* \[x\] **Conditional & Automated Stablecoin Flows:** `UntouchedVaultV2` keeps principal separate from the 14-day 5% yield battery, records usage only inside that battery, returns principal minus used credit on withdraw, and lets the CRE caller restore used yield with `reconcile`.
+* \[x\] **Conditional & Automated Stablecoin Flows:** `UntouchedVaultV2` keeps principal separate from the 14-day 5% yield battery, records usage only inside that battery, and returns principal minus used credit on withdraw.
 
 * \[ \] **Reusable Module:** Document how another Arc app can call `depositNative`, `positions`, and `withdraw` on `UntouchedVaultV2`.
-
-## Slot 2: Chainlink (\$5,000 Eligible — CRE Workflow Track)
-
-Not targeted. The app does not run a CRE workflow.

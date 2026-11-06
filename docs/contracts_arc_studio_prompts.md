@@ -10,14 +10,14 @@
 Copy and paste this exact prompt into **Arc Studio** to generate and deploy our contracts on **Arc Testnet (`Chain ID: 5042002`)**:
 
 ```text
-Build and deploy a modular smart contract suite on Arc Testnet (Chain ID 5042002) for "Untouched", a principal-protected AI Nanopayment credit vault with Chainlink AggregatorV3Interface oracle accounting.
+Build and deploy a modular smart contract suite on Arc Testnet (Chain ID 5042002) for "Untouched", a principal-protected AI Nanopayment credit vault with AggregatorV3Interface oracle accounting.
 
 Generate two contracts in a single file or linked files with unit tests:
 
-1. MockUSYCOracle (implements Chainlink AggregatorV3Interface):
+1. MockUSYCOracle (implements AggregatorV3Interface):
 - Stores an 8-decimal NAV share price for simulated USYC starting at 100000000 ($1.00000000).
 - Implements latestRoundData() returning (roundId, answer, startedAt, updatedAt, answeredInRound).
-- Includes a public function simulateDaysPassed(uint256 daysCount) that increases the NAV price at 5% APY (approx 136986 per day per 1e8, so 14 days adds 1917808 -> $1.00191780) so we can demonstrate yield accrual and Chainlink CRE reconciliation live in our demo.
+- Includes a public function simulateDaysPassed(uint256 daysCount) that increases the NAV price at 5% APY (approx 136986 per day per 1e8, so 14 days adds 1917808 -> $1.00191780).
 
 2. PrincipalCreditVault (reusable by other agent builders):
 - Uses Arc Testnet USDC (6 decimals) and reads MockUSYCOracle via AggregatorV3Interface.
@@ -40,7 +40,7 @@ Generate two contracts in a single file or linked files with unit tests:
   - Calculates 14-day projected yield at 5% APY: advanceUsdc = (amountUsdc * 500 * 14) / (10000 * 365).
   - Transfers advanceUsdc from CreditReservePool directly to agentSignerEOA so the agent can fund Circle GatewayWallet without ever having allowance over the user's principal.
   - Emits DepositAndCreditAdvanced(msg.sender, agentSignerEOA, amountUsdc, advanceUsdc, currentNav).
-- Function reconcileAndRepay(address user) (Designed for Chainlink CRE automation):
+- Function reconcileAndRepay(address user):
   - Reads currentNav from MockUSYCOracle.latestRoundData().
   - Calculates currentPositionValueUsdc = (pos.usycShares * currentNav) / 1e20.
   - Requires currentPositionValueUsdc > pos.principalUsdc.
@@ -214,7 +214,7 @@ contract PrincipalCreditVault {
         }
     }
 
-    /// @notice Triggered by Chainlink CRE Workflow when NAV appreciation covers advance
+    /// @notice Repays the advance when NAV appreciation covers it
     function reconcileAndRepay(address user) external {
         UserPosition storage pos = positions[user];
         require(pos.usycShares > 0, "No active position");

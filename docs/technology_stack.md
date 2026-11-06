@@ -1,6 +1,6 @@
 # Untouched — Complete Technology Stack & Tool Guide
 
-The stack is Arc for settlement, Chainlink for yield reconciliation, and a Next.js gateway in front of the LLM providers.
+The stack is Arc for settlement and a Next.js gateway in front of the LLM providers.
 
 ---
 
@@ -12,7 +12,6 @@ The stack is Arc for settlement, Chainlink for yield reconciliation, and a Next.
 | **Arc Studio** | `https://studio.arc.com` | **Mandatory for Arc Bounties.** AI-assisted Web IDE used to prompt, generate, test, and deploy `PrincipalCreditVault.sol` and `MockUSYCOracle.sol`. |
 | **Arc Testnet USDC** | `0x3600000000000000000000000000000000000000` | Base deposit asset (`$50.00` principal) and Nanopayment settlement asset (`$0.095` credit advance). |
 | **Circle GatewayWallet** | `0x0077777d7EBA4688BDeF3E311b846F25870A19B9` (Arc Testnet) | Official Circle contract holding the isolated Agent Signer EOA's funded `$0.095` Nanopayment balance. |
-| **Chainlink `AggregatorV3Interface`** | Implemented in `PrincipalCreditVault.sol` & `MockUSYCOracle.sol` | Reads onchain USYC share NAV price (`$1.000000` -> `$1.001918`) and USDC/USD price feed inside smart contract functions that mutate state (`deposit` and `reconcileAndRepay`). |
 
 ---
 
@@ -26,16 +25,7 @@ The stack is Arc for settlement, Chainlink for yield reconciliation, and a Next.
 
 ---
 
-## 3. Oracle Automation (Chainlink)
-
-| Tool / SDK | Package / Component | Exact Role in Untouched |
-| :--- | :--- | :--- |
-| **Chainlink Runtime Environment (CRE)** | CRE Workflow (`cre-reconcile-workflow.ts` / YAML) | Monitors `PrincipalCreditVault.getAccruedSurplus(user)` and automatically executes `reconcileAndRepay(user)` when USYC NAV appreciation covers the outstanding yield advance. |
-| **Chainlink Price Feeds (`AggregatorV3Interface`)** | Solidity Interface (`@chainlink/contracts`) | Onchain oracle reads inside `PrincipalCreditVault.sol` that directly govern credit issuance and share redemption state changes. |
-
----
-
-## 5. Full-Stack Web, Proxy & Real-Time Sync
+## 3. Full-Stack Web, Proxy & Real-Time Sync
 
 | Tool / Library | Purpose |
 | :--- | :--- |

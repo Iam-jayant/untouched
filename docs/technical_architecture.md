@@ -33,7 +33,7 @@
 | - PrincipalCreditVault.sol (Arc Studio) |  | - Circle GatewayWallet               |
 | - MockUSYC & MockUSYCOracle.sol         |  |   (0x0077777d7EBA4688BDeF3E311...)   |
 | - CreditReservePool (Fronts $0.095)     |  | - LLM providers (OpenRouter, Groq, Gemini) |
-| - Arc USDC (0x360000...0000)            |  | - Chainlink CRE Workflow             |
+| - Arc USDC (0x360000...0000)            |  |                                      |
 +-----------------------------------------+  +--------------------------------------+
 ```
 
@@ -55,7 +55,7 @@ Real USYC accrues yield via rising token Net Asset Value (NAV) price, not separa
 3. **After 14 Days ($t_{14}$):** Oracle NAV rises by $\approx 0.1917\%$ to $NAV_{14} = \$1.001918$.
    $$\text{Current Position Value } (V) = \text{Shares} \times NAV_{14} = 50.00 \times 1.001918 = \$50.095900\text{ USDC}$$
    $$\text{Redeemable Surplus } (S) = V - P = \$0.095900\text{ USDC}$$
-4. **Reconciliation (`reconcileAndRepay` via Chainlink CRE):**
+4. **Reconciliation (`reconcileAndRepay`):**
    * Redeems $\frac{S}{NAV_{14}}$ shares for `$0.095900 USDC`.
    * Sends `$0.095000 USDC` back to `CreditReservePool` (setting `unpaidAdvance = 0`).
    * Forwards remaining surplus (`$0.000900 USDC`) + a fresh 14-day advance to the Agent Signer EOA's Gateway balance.

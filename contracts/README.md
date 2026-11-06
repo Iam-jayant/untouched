@@ -5,7 +5,7 @@
 ## Contracts
 
 ### MockUSYCOracle.sol
-Mock Chainlink `AggregatorV3Interface` for simulating USYC yield (5% APY).
+Mock price source for simulating USYC yield (5% APY).
 
 ### PrincipalCreditVault.sol  
 Principal-protected vault with credit advance system. Supports flexible deposits ≥ $10 USDC.

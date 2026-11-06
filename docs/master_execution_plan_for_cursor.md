@@ -10,17 +10,17 @@
 **Goal:** Deploy and verify the contracts in **Arc Studio** (`studio.arc.com`) and export their ABIs and addresses into `src/lib/contracts.ts`.
 
 * [ ] **1.1 `MockUSYCOracle.sol` & `MockUSYC.sol`:**
-  * Implement Chainlink's `AggregatorV3Interface` (`latestRoundData()`) returning the USYC NAV price with 8 decimals (starts at `1_00000000` = `$1.00000000`).
+  * Implement `AggregatorV3Interface` (`latestRoundData()`) returning the USYC NAV price with 8 decimals (starts at `1_00000000` = `$1.00000000`).
   * Add `simulateDaysPassed(uint256 daysCount)` which increases NAV at `5% APY` (`~0.0136986%` per day, so 14 days increases NAV to `1_00191780`).
 * [ ] **1.2 `PrincipalCreditVault.sol`:**
   * Hold `CreditReservePool` liquidity in Arc USDC (`0x3600000000000000000000000000000000000000` or local testable ERC20 fallback).
   * `deposit(uint256 amount, address agentSignerEOA, bytes32 nullifier)`:
     * Require `nullifier` has not been used.
-    * Read `usycOracle.latestRoundData()` onchain (mandatory Chainlink state-changing read).
+    * Read `usycOracle.latestRoundData()` onchain.
     * Mint simulated USYC shares for `amount` (`$50.00 USDC`).
     * Compute 14-day projected yield advance: `advance = (amount * 500 * 14) / (10000 * 365)` (capped at `$0.095 USDC` for `$50`).
     * Transfer `advance` (`$0.095 USDC`) from `CreditReservePool` to `agentSignerEOA` so it can fund Circle `GatewayWallet`.
-  * `reconcileAndRepay(address user)` (Callable by Chainlink CRE workflow):
+  * `reconcileAndRepay(address user)`:
     * Read current NAV from `usycOracle.latestRoundData()`.
     * Calculate `currentValue = (userShares * currentNav) / 1e8`.
     * Require `currentValue > userPrincipal`.
@@ -75,19 +75,17 @@
 * [ ] **4.3 PC Developer Command Center (`src/components/PcDashboard.tsx`):**
   * API Key & Base URL card with copyable snippets for **Cursor IDE**, **OpenAI SDK**, and **cURL**.
   * Live AI Playground with Model Selector (`gpt-4o-mini ($0.001)` vs. `claude-3-opus-deep-research ($0.020)`) and live **Arc Marketplace Discovery API** tool selector.
-  * **Onchain Vault & Chainlink CRE Simulator Card** featuring the **`⏩ Fast-Forward 14 Days (+5% APY) & Reconcile`** button.
+  * **Onchain Vault card** with deposit and withdraw.
   * Live EIP-3009 Signature & Receipt Inspector table.
 
 ---
 
-## Phase 5: Chainlink CRE Workflow & Final Polish
-**Goal:** Package the Chainlink CRE workflow script and verify every sponsor checklist item.
+## Phase 5: Final Polish
+**Goal:** Verify the sponsor checklist and rehearse the demo.
 
-* [ ] **5.1 Chainlink CRE Workflow (`cre-workflow/reconcile-yield.ts`):**
-  * Write the clean CRE workflow script that reads `PrincipalCreditVault.getVaultStatus(user)` and triggers `reconcileAndRepay(user)` when accrued USYC NAV surplus covers the advance.
-* [ ] **5.2 End-to-End Demo Rehearsal:**
-  * Verify all 4 demo beats work in `<90 seconds` on the Split-Screen view:
-    1. Deposit `$50.00 USDC` -> `$0.0950` battery unlocks.
-    2. Run `$0.001` Haiku/GPT-4o-mini prompt with Arc Marketplace Search -> Auto-pays via Nanopayment; Savings stays `$50.00`.
-    3. Run a `$0.020` Opus prompt over the cap -> HTTP 403, $0 spent. Raise the cap and run it again to see a normal charge.
-    4. Click **Fast-Forward 14 Days** -> Chainlink CRE reconciles USYC NAV growth, repays Reserve Pool, and recharges Battery to `$0.0950`.
+* [ ] **5.1 End-to-End Demo Rehearsal:**
+  * Verify the demo beats:
+    1. Deposit `$50.00 USDC` -> the yield battery unlocks.
+    2. Run a prompt inside the battery -> savings stay `$50.00`.
+    3. Run a prompt over the cap -> HTTP 403, $0 spent.
+    4. Withdraw -> principal returns minus used yield.

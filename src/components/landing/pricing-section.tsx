@@ -28,7 +28,6 @@ const plans = [
       "~95 routine AI prompts on Day 1",
       "Heavy models billed from the yield battery",
       "Mobile Companion PWA remote control",
-      "Automated Chainlink CRE yield refill",
       "Full x402 EIP-3009 receipt inspector",
     ],
     cta: "Launch with $50",

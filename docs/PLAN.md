@@ -15,7 +15,7 @@
 6. [Phase 2 — Backend Proxy, Discovery & Nanopayments](#phase-2--backend-proxy-discovery--nanopayments)
 7. [Phase 3 — Spend policy](#phase-3--spend-policy)
 8. [Phase 4 — Dual-Device Frontend](#phase-4--dual-device-frontend)
-9. [Phase 5 — Chainlink CRE Workflow & Final Polish](#phase-5--chainlink-cre-workflow--final-polish)
+9. [Phase 5 — Final Polish](#phase-5--final-polish)
 10. [Sponsor Qualification Matrix](#sponsor-qualification-matrix)
 11. [Demo Script (≤ 3 min)](#demo-script)
 
@@ -25,15 +25,13 @@
 
 **Untouched** is a principal-protected LLM & MCP API Gateway on **Arc Testnet**.
 
-A user deposits **$10+ USDC** (with UI presets for $50, $100, $250, or Custom) into a vault, gets an instant credit advance (14 days of projected 5% APY yield — e.g., $0.095 for $50, $0.192 for $100), and receives a drop-in OpenAI/Anthropic-compatible API key (`https://untouched.dev/v1`). The principal stays isolated and *untouched* — only yield pays for AI prompts via **Circle Nanopayments**. Calls over the per-call cap are rejected and cost nothing. A **Chainlink CRE** workflow auto-reconciles yield to repay the credit reserve. **100% free upstream LLM routing** via OpenRouter `:free` models, Groq, or Gemini ensures zero API costs.
+A user deposits **$10+ USDC** (with UI presets for $50, $100, $250, or Custom) into a vault, gets an instant credit advance (14 days of projected 5% APY yield — e.g., $0.095 for $50, $0.192 for $100), and receives a drop-in OpenAI/Anthropic-compatible API key (`https://untouched.dev/v1`). The principal stays isolated and *untouched* — only yield pays for AI prompts via **Circle Nanopayments**. Calls over the per-call cap are rejected and cost nothing. **100% free upstream LLM routing** via OpenRouter `:free` models, Groq, or Gemini ensures zero API costs.
 
 **Target Sponsors (3 slots):**
 
 | Slot | Sponsor | Prize Pool | Key Integration |
 |------|---------|-----------|-----------------|
 | 1 | **Arc** | $9,000 (3 tracks) | Arc Studio contracts, Marketplace Discovery API, Circle Nanopayments |
-| 2 | **Chainlink** | CRE | Yield reconciliation |
-| 3 | **Chainlink** | $5,000 (CRE track) | Onchain oracle reads (`AggregatorV3Interface`) + CRE workflow |
 
 ---
 
@@ -78,7 +76,7 @@ A user deposits **$10+ USDC** (with UI presets for $50, $100, $250, or Custom) i
 │                          │ │                                   │
 │  PrincipalCreditVault    │ │  Circle GatewayWallet             │
 │  MockUSYCOracle          │ │  LLM providers                    │
-│  Arc USDC (0x3600…)      │ │  Chainlink CRE Workflow           │
+│  Arc USDC (0x3600…)      │ │                                   │
 └──────────────────────────┘ │  OpenAI / Anthropic / OpenRouter  │
                              │  Groq / Gemini (free tier)        │
                              └───────────────────────────────────┘
@@ -212,9 +210,6 @@ sseBus.emit('STEP_UP_RESOLVED', { status: 'APPROVED' });
 
   npm i ethers viem
 
-  # Chainlink (Solidity interface only — used in contracts)
-  # npm i @chainlink/contracts (or inline interface)
-
   # LLM proxy
   npm i openai
 
@@ -284,9 +279,6 @@ sseBus.emit('STEP_UP_RESOLVED', { status: 'APPROVED' });
   contracts/
   ├── UntouchedVault.sol               # PrincipalCreditVault + MockUSYCOracle
   └── README.md                        # Arc Studio deployment notes
-  cre-workflow/
-  ├── reconcile-yield.ts               # Chainlink CRE workflow script
-  └── README.md
   ```
 
 - [ ] **0.4 — Environment variables (`.env.local`)**
@@ -347,7 +339,7 @@ sseBus.emit('STEP_UP_RESOLVED', { status: 'APPROVED' });
   - `depositWithCreditAdvance(uint256 amountUsdc, address agentSignerEOA, bytes32 nullifier)`:
     - `require(amountUsdc >= MIN_DEPOSIT_USDC)` — enforces $10 minimum
     - Reuse check: `require(!usedNullifiers[nullifier])`
-    - Reads `usycOracle.latestRoundData()` (**onchain state-changing read — Chainlink requirement**)
+    - Reads `usycOracle.latestRoundData()`
     - Mints shares: `shares = (amountUsdc * 1e20) / currentNav`
     - Computes advance dynamically: `advance = (amountUsdc * 500 * 14) / (10000 * 365)`
     - Transfers advance from CreditReservePool → agentSignerEOA
@@ -525,7 +517,7 @@ sseBus.emit('STEP_UP_RESOLVED', { status: 'APPROVED' });
   - Animated horizontal battery bar (Framer Motion)
   - Value: Scales to deposit — e.g., `$0.0192` for $10, `$0.0950` for $50, `$0.1918` for $100, `$0.4795` for $250
   - Dynamic prompt count: `≈ X Free AI Prompts Remaining Today` (computed from battery ÷ $0.001)
-  - Sub-badge: `⚡ Auto-refills from your interest via Chainlink`
+  - Sub-badge: `⚡ 14-day yield battery`
 
 - [ ] **4.B.3 — Spend Controls Card**
   - Interactive slider: `$0.001` → `$0.050` (default `$0.005`)
@@ -548,7 +540,7 @@ sseBus.emit('STEP_UP_RESOLVED', { status: 'APPROVED' });
 - [ ] **4.C.1 — Left Column: API Key, Vault & Simulator**
   - **API Key Card**: Base URL + key with copy buttons, snippet tabs (Cursor, OpenAI SDK, cURL)
   - **Vault Telemetry**: Live contract state — USYC shares, NAV price, outstanding advance, Agent Signer EOA address
-  - **Fast-Forward Simulator Card**: `⏩ Simulate +14 Days USYC Yield & Run Chainlink CRE Reconcile` button — calls `/api/vault/simulate` which invokes `MockUSYCOracle.simulateDaysPassed(14)` + `PrincipalCreditVault.reconcileAndRepay()` and animates battery refill
+  - **Fast-Forward Simulator Card**: restores the 14-day yield battery through `/api/vault/simulate`
 
 - [ ] **4.C.2 — Center Column: AI & MCP Playground**
   - **Model Selector**: Routine tier ($0.001 — auto-approve) vs Heavy tier ($0.020 — step-up)
@@ -573,49 +565,29 @@ sseBus.emit('STEP_UP_RESOLVED', { status: 'APPROVED' });
 
 ---
 
-## Phase 5 — Chainlink CRE Workflow & Final Polish
+## Phase 5 — Final Polish
 
-**Goal:** Package the CRE workflow, verify every sponsor checklist item, rehearse the demo.
+**Goal:** Verify the Arc checklist and rehearse the demo.
 
 ### Tasks
 
-- [ ] **5.1 — Chainlink CRE Workflow (`cre-workflow/reconcile-yield.ts`)**
-  - Monitors `PrincipalCreditVault.getAccruedSurplusUsdc(user)`
-  - When surplus > 0 and covers advance, triggers `reconcileAndRepay(user)`
-  - Include README with CRE workflow setup instructions
-
-- [ ] **5.2 — `/api/vault/simulate/route.ts` (Demo Fast-Forward)**
-  - Calls `MockUSYCOracle.simulateDaysPassed(14)` on-chain
-  - Then calls `PrincipalCreditVault.reconcileAndRepay(user)` on-chain
-  - Broadcasts `VAULT_UPDATE` + `BATTERY_UPDATE` SSE events
-  - Battery animates refilling to full capacity (scales to deposit: $0.0192 for $10, $0.0950 for $50, $0.1918 for $100, etc.) on both PC + Mobile
-
-- [ ] **5.3 — Sponsor Checklist Verification**
+- [ ] **5.1 — Sponsor Checklist Verification**
 
   **Arc ($9,000 — 3 tracks):**
   - [ ] Contracts built, tested, deployed in Arc Studio (`studio.arc.com`)
   - [ ] Shareable Arc Studio link in README + ETHGlobal submission
   - [ ] Arc Studio shown in first 15–20s of demo video
   - [ ] USDC settlement on Arc Testnet (`0x3600…`)
-  - [ ] Marketplace Discovery API queried and displayed
-  - [ ] Gasless EIP-3009 Nanopayments via `@circle-fin/x402-batching`
-  - [ ] Mobile consumer controls (slider, step-up modal, receipt feed)
-  - [ ] Mobile UI uses plain English (no crypto jargon)
-  - [ ] Advanced stablecoin logic (principal isolation, reserve float, NAV reconciliation, early-exit)
+  - [ ] Advanced stablecoin logic (principal isolation, 14-day yield battery, early withdraw)
   - [ ] Reusable module documented
 
-  **Chainlink ($5,000 — CRE track):**
-  - [ ] **No frontend-only price feed reads** (anti-disqualification)
-  - [ ] `usycOracle.latestRoundData()` called inside `deposit()` and `reconcileAndRepay()` — mutating onchain storage
-  - [ ] CRE workflow script included (`cre-workflow/reconcile-yield.ts`)
-
-- [ ] **5.4 — README.md**
+- [ ] **5.2 — README.md**
   - What the product does
   - How to run it
   - API, contracts, and environment variables
 
-- [ ] **5.5 — End-to-End Demo Rehearsal (≤ 3 minutes)**
-  Verify all 4 beats work on Split-Screen view in < 90 seconds each.
+- [ ] **5.3 — End-to-End Demo Rehearsal (≤ 3 minutes)**
+  Verify the beats work on the dashboard and the phone.
 
 ---
 
@@ -629,7 +601,7 @@ sseBus.emit('STEP_UP_RESOLVED', { status: 'APPROVED' });
 | **1** | 0:20–0:50 | — | Deposit $50 USDC. Battery appears. | Arc |
 | **2** | 0:50–1:20 | Send `gpt-4o-mini` + Arc Marketplace Search ($0.001) | Battery ticks down. Receipt appears. Savings unchanged. | Arc Track B, Nanopayments |
 | **3** | 1:20–2:20 | Send a model over the per-call cap | Receipt shows $0.00 spent. Principal unchanged. | Spend policy |
-| **4** | 2:20–2:50 | Click `⏩ Fast-Forward 14 Days` → CRE reconcile runs | Battery animates back to full. Savings unchanged. | Chainlink CRE, Oracle |
+| **4** | 2:20–2:50 | Withdraw the position | Principal returns minus used yield. Battery clears. | Arc |
 | **5** | 2:50–3:00 | Show Audit Log: all receipts, $0 principal deducted | — | All sponsors |
 
 ---

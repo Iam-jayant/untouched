@@ -27,7 +27,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Untouched — Principal-Protected AI Gateway",
   description: "Deposit USDC, get an OpenAI-compatible API key. Your principal stays untouched — only yield pays for AI prompts via Circle Nanopayments on Arc Testnet.",
-  keywords: ["AI", "API", "USDC", "Circle", "Arc", "InfrGate", "Chainlink", "DeFi", "Nanopayments"],
+  keywords: ["AI", "API", "USDC", "Circle", "Arc", "InfrGate", "DeFi", "Nanopayments"],
   manifest: "/manifest.json",
   icons: {
     icon: "/favicon.ico",

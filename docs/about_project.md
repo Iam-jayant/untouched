@@ -24,7 +24,7 @@
 4. **Dual-Screen Control (PC Dashboard + Mobile Companion):**
    * **On PC:** You paste your `untouched` API key into Cursor/Cline (or use our PC Web Dashboard) and watch real-time token telemetry, live Arc Marketplace tool discovery, and Nanopayment receipts.
    * **On Phone:** The mobile app is the vault remote: deposit, withdraw, and set the per-call cap. A prompt over that cap is rejected immediately and costs $0.
-5. **Self-Repaying Yield Loop & Fair Early Exit:** Over the next 14 days, your locked $50 accrues simulated retail **USYC** NAV appreciation (~5% APY). A **Chainlink Runtime Environment (CRE)** workflow reads the onchain USYC NAV Oracle (`AggregatorV3Interface`), redeems only the yield surplus above `$50.00`, repays the `CreditReservePool`, and refills your API key battery. If you withdraw your $50 after 5 minutes before earning interest, the vault deducts only the unpaid advance (returning `$49.905`), guaranteeing 100% protocol solvency.
+5. **Fair Early Exit:** Prompts spend the 14-day yield battery. If you withdraw, the vault returns principal minus what that battery already covered.
 
 ---
 
@@ -39,6 +39,3 @@
    * Built end-to-end in **Arc Studio** (`PrincipalCreditVault.sol` on Arc Testnet `5042002`).
    * Uses **Circle Gateway Nanopayments** (`@circle-fin/x402-batching`) for gasless per-prompt settlement and **<0.5s finality** (compared to 13–19 minutes for Gateway deposits on Ethereum/Base).
    * Queries the **Arc Marketplace Discovery API** (`GET /v2/x402/discovery/resources?supportsCircleGateway=true`) to dynamically attach live x402 tools (`WEB_SEARCH_RESEARCH`, `CREATIVE`, `FINANCIAL_ANALYSIS`) to LLM prompts.
-2. **Chainlink (CRE):**
-   * **Onchain Oracle Read:** `PrincipalCreditVault.sol` reads the `AggregatorV3Interface` USYC NAV price and USDC/USD feed onchain to compute credit advances and redeemable yield surplus.
-   * **Chainlink CRE Workflow:** Automates the periodic `reconcileAndRepay()` transaction when USYC share value rises above `$50.00`.

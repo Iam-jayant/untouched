@@ -281,9 +281,9 @@ export default function DashboardPage() {
             {/* Time Simulator */}
             <div className="slide-up" style={{ animationDelay: '0.3s' }}>
               <div className="relative bg-black/50 border border-white/10 rounded-lg p-6 backdrop-blur-sm">
-                <h3 className="text-lg font-medium mb-2">Yield reconcile</h3>
+                <h3 className="text-lg font-medium mb-2">Yield battery</h3>
                 <p className="text-sm text-white/60">
-                  Chainlink CRE reads this vault and official USYC every 6 hours, checks the gateway spend ledger, and repays used yield on-chain.
+                  A stake adds 14 days of 5% APY to the battery. Prompts spend that battery. The principal stays in the vault until withdraw.
                 </p>
               </div>
             </div>

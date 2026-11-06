@@ -106,7 +106,7 @@ contract UntouchedVaultV2 {
         emit Withdrawn(msg.sender, payout6Dec);
     }
 
-    /// @notice CRE repays used yield and restores the quota. Same-second blocks are allowed.
+    /// @notice Restores used yield and the quota. Same-second blocks are allowed.
     function reconcile(address user, uint256 surplus6Dec) external {
         if (msg.sender != creCaller) revert NotCre();
         if (block.timestamp < lastReconciledAt) revert StaleTimestamp();
