@@ -32,6 +32,10 @@ yarn-error.log*
 # env files
 .env
 .env*.local
+.tools/
+contracts/cache/
+contracts/out/
+contracts/broadcast/
 
 # vercel
 .vercel
