@@ -132,6 +132,7 @@ export interface ModelConfig {
   costPerMToken: number; // USD per million tokens
   free: boolean;
   fallbackOrder: number; // 1 = try first, 2 = try second, etc.
+  locked?: boolean;
 }
 
 // ============================================================================

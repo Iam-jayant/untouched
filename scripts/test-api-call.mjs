@@ -20,7 +20,7 @@ async function testAPICall() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.5-flash',
         messages: [
           { role: 'user', content: 'Say "Hello from Arc Testnet!" in exactly 5 words.' }
         ],

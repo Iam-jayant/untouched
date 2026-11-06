@@ -1,38 +1,44 @@
-# Chainlink Runtime Environment (CRE) Workflow
-# Reconciles USYC Treasury Yield and repays Credit Reserve Pool every 6 hours
+# Chainlink CRE workflow
+# Reads Arc vault positions and official USYC, then the Untouched spend ledger,
+# and repays used yield when surplus covers it.
 
 name: untouched-yield-reconciliation
 version: 1.0.0
 
 triggers:
   - type: cron
-    schedule: "0 */6 * * *" # Every 6 hours
-    description: "Reconcile USYC yield and repay Credit Reserve Pool"
+    schedule: "0 */6 * * *"
 
 env:
-  ARC_TESTNET_RPC: "https://sepolia.arc.io"
-  USYC_ORACLE_ADDRESS: "0x3cc26da603767966929c57f9b5c69030feaac4bf"
-  VAULT_ADDRESS: "0x649a09b10c70fffe9ef5f8d70e5a7de292b793df"
-  MIN_SURPLUS_THRESHOLD_USDC: "1000000" # $1 minimum
+  ARC_TESTNET_RPC: "https://rpc.testnet.arc.network"
+  ARC_RPC_FALLBACK: "https://rpc.solidrpc.io/public/evm/5042002"
+  VAULT_ADDRESS: "0xcA9F8D931b6a0dE64ED74757A66aCB203413f2C1"
+  USYC_ADDRESS: "0xe9185f0c5f296ed1797aae4238d26ccabeadb86c"
+  LEDGER_URL: "http://127.0.0.1:3000/api/v1/ledger"
 
 sources:
-  - name: usyc-oracle
+  - name: vault-positions
     type: evm-read
     config:
-      chain: arc-testnet
       chainId: 5042002
-      address: "${USYC_ORACLE_ADDRESS}"
-      method: "latestRoundData()"
-      outputs: ["uint80", "int256", "uint256", "uint256", "uint80"]
-
-  - name: vault-surplus
-    type: evm-read
-    config:
-      chain: arc-testnet
-      chainId: 5042002
+      rpc: "${ARC_TESTNET_RPC}"
       address: "${VAULT_ADDRESS}"
-      method: "getAccruedSurplusUsdc()"
-      outputs: ["uint256"]
+      method: "depositorCount()"
+
+  - name: usyc-balance
+    type: evm-read
+    config:
+      chainId: 5042002
+      rpc: "${ARC_TESTNET_RPC}"
+      address: "${USYC_ADDRESS}"
+      method: "balanceOf(address)"
+      args: ["${VAULT_ADDRESS}"]
+
+  - name: gateway-ledger
+    type: http
+    config:
+      url: "${LEDGER_URL}"
+      method: GET
 
 consensus:
   type: chainlink-ocr
@@ -40,15 +46,10 @@ consensus:
   threshold: 3
 
 actions:
-  - name: reconcile-and-repay
+  - name: reconcile
     type: evm-write
-    condition: "vault-surplus.output[0] >= env.MIN_SURPLUS_THRESHOLD_USDC"
+    condition: "gateway-ledger.usedCredit > 0 && usyc-balance > 0"
     config:
-      chain: arc-testnet
       chainId: 5042002
       address: "${VAULT_ADDRESS}"
-      method: "reconcileAndRepay(address)"
-      params:
-        - type: address
-          value: "msg.sender"
-      gasLimit: 200000
+      method: "reconcile(address,uint256)"

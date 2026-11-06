@@ -20,14 +20,13 @@ import {
   addReceipt, 
 } from '@/lib/agent-store';
 import { broadcastReceipt, broadcastBalanceUpdate } from '@/lib/sse';
-import { getFreeTierCascade, resolveModel } from '@/lib/constants';
+import { providerKeyConfigured, resolveModel } from '@/lib/constants';
 import { callLLM } from '@/lib/llm-proxy';
-import { signNanopayment } from '@/lib/nanopayments';
+import { paymentRequiredHeader, signGatewayPayment } from '@/lib/x402';
 import {
   createTraceBuilder,
   getIdempotencyGuard,
   getRateLimiter,
-  rankProviders,
 } from '@/lib/infrgate';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
@@ -46,7 +45,11 @@ export async function POST(req: NextRequest) {
     if (!apiKey) {
       trace.fail('Missing API key');
       trace.finalize();
-      return NextResponse.json({ error: 'Missing API key' }, { status: 401 });
+      const required = paymentRequiredHeader(0, 'missing_auth');
+      return NextResponse.json(
+        { error: 'Missing API key' },
+        { status: 402, headers: { 'PAYMENT-REQUIRED': required } }
+      );
     }
 
     let user = getUser(apiKey);
@@ -186,6 +189,7 @@ export async function POST(req: NextRequest) {
       } else if (policy.action === 'deposit_more') {
         trace.fail('Insufficient yield battery');
         trace.finalize();
+        const required = paymentRequiredHeader(policy.estimatedCostUSDC || 0, 'yield_battery_empty');
         return NextResponse.json(
           {
             error: policy.reason,
@@ -193,7 +197,7 @@ export async function POST(req: NextRequest) {
             estimated_cost_usdc: policy.estimatedCostUSDC,
             executionTrace: trace.getTrace(),
           },
-          { status: 402 }
+          { status: 402, headers: { 'PAYMENT-REQUIRED': required } }
         );
       } else {
         trace.fail(policy.reason || 'Policy denied');
@@ -212,93 +216,53 @@ export async function POST(req: NextRequest) {
     // ========================================================================
     trace.startStep('ROUTING', 'Provider Routing (InfrGate)');
     
-    const model = resolveModel(body.model); // Use flexible model resolution
-    const isFreeTier = model?.free || false;
+    const model = resolveModel(body.model);
+    if (!model || model.locked) {
+      trace.fail('Locked or unknown model');
+      trace.finalize();
+      return NextResponse.json(
+        { error: model?.locked ? 'Locked — Protects the yield battery' : `Unknown model: ${body.model}` },
+        { status: 403 }
+      );
+    }
+    if (!providerKeyConfigured(model.provider)) {
+      trace.fail(`${model.provider} key missing`);
+      trace.finalize();
+      return NextResponse.json(
+        { error: `${model.name} is unavailable` },
+        { status: 503 }
+      );
+    }
 
     let response: ChatCompletionResponse | undefined;
     let actualModel: string | undefined;
     let provider: 'openrouter' | 'groq' | 'gemini' | 'mock' | undefined;
     let costUSDC = 0;
 
-    if (isFreeTier) {
-      // Free-tier: cascade through ranked providers
-      const cascade = getFreeTierCascade();
-      const providers = cascade.map((m) => m.provider).filter((p): p is 'openrouter' | 'groq' | 'gemini' => p !== 'mock');
-      const rankedProviders = rankProviders(providers);
-      
-      trace.addMetadata({ strategy: 'free_tier_cascade', rankedProviders });
-
-      let lastError: Error | null = null;
-
-      for (const providerName of rankedProviders) {
-        const fallbackModel = cascade.find((m) => m.provider === providerName);
-        if (!fallbackModel) continue;
-
-        try {
-          const callStart = Date.now();
-          response = await callLLM(fallbackModel, body);
-          const callDuration = Date.now() - callStart;
-          
-          actualModel = fallbackModel.id;
-          provider = fallbackModel.provider;
-          costUSDC = calculateCost(response, fallbackModel.costPerMToken);
-          
-          trace.succeed({
-            provider: providerName,
-            model: actualModel,
-            latencyMs: callDuration,
-            cost: costUSDC,
-          });
-          break;
-        } catch (error) {
-          console.error(`[Chat] ${fallbackModel.id} failed:`, error);
-          lastError = error as Error;
-          // Continue to next fallback
-        }
-      }
-
-      if (!response) {
-        trace.fail(`All providers failed: ${lastError?.message}`);
-        trace.finalize();
-        return NextResponse.json(
-          {
-            error: 'All free-tier providers failed',
-            details: lastError?.message,
-            executionTrace: trace.getTrace(),
-          },
-          { status: 503 }
-        );
-      }
-    } else {
-      // Premium model: call directly
-      try {
-        const callStart = Date.now();
-        response = await callLLM(model!, body);
-        const callDuration = Date.now() - callStart;
-        
-        actualModel = body.model;
-        provider = model!.provider;
-        costUSDC = calculateCost(response, model!.costPerMToken);
-        
-        trace.succeed({
-          provider: model!.provider,
-          model: actualModel,
-          latencyMs: callDuration,
-          cost: costUSDC,
-        });
-      } catch (error) {
-        console.error(`[Chat] ${body.model} failed:`, error);
-        trace.fail(`Provider error: ${(error as Error).message}`);
-        trace.finalize();
-        return NextResponse.json(
-          {
-            error: 'LLM request failed',
-            details: (error as Error).message,
-            executionTrace: trace.getTrace(),
-          },
-          { status: 503 }
-        );
-      }
+    try {
+      const callStart = Date.now();
+      response = await callLLM(model, body);
+      actualModel = model.id;
+      provider = model.provider;
+      costUSDC = calculateCost(response, model.costPerMToken);
+      trace.succeed({
+        provider: model.provider,
+        model: actualModel,
+        latencyMs: Date.now() - callStart,
+        cost: costUSDC,
+      });
+    } catch (error) {
+      console.error(`[Chat] ${body.model} failed:`, error);
+      trace.fail(`Provider error: ${(error as Error).message}`);
+      trace.finalize();
+      return NextResponse.json(
+        {
+          error: 'LLM request failed',
+          details: (error as Error).message,
+          executionTrace: trace.getTrace(),
+        },
+        { status: 503 }
+      );
     }
 
     // TypeScript assertion
@@ -322,25 +286,30 @@ export async function POST(req: NextRequest) {
       if (!success) {
         trace.fail('Insufficient battery after completion');
         trace.finalize();
+        const required = paymentRequiredHeader(costUSDC, 'yield_battery_empty');
         return NextResponse.json(
           { error: 'Insufficient battery after completion', executionTrace: trace.getTrace() },
-          { status: 402 }
+          { status: 402, headers: { 'PAYMENT-REQUIRED': required } }
         );
+      }
+      if (user.walletAddress) {
+        try {
+          const { recordUsageOnChain } = await import('@/lib/vault-chain');
+          await recordUsageOnChain(user.walletAddress, costUSDC);
+        } catch (chainError) {
+          console.error('[Chat] recordUsage failed:', chainError);
+        }
       }
     }
 
     // Generate receipt with x402 metadata
-    let txHash: string | undefined;
     let x402Signature: string | undefined;
     let gatewayWallet: string | undefined;
 
     // Sign nanopayment for paid requests (costUSDC > 0)
-    if (costUSDC > 0) {
-      const nanopayment = signNanopayment(user.agentSigner, costUSDC, actualModel);
-      txHash = nanopayment.txHash;
-      x402Signature = nanopayment.x402Signature;
-      gatewayWallet = nanopayment.gatewayWallet;
-    }
+    const payment = await signGatewayPayment(costUSDC);
+    x402Signature = payment.signature;
+    gatewayWallet = payment.receipt.payTo;
 
     const executionTrace = trace.finalize();
 
@@ -353,8 +322,7 @@ export async function POST(req: NextRequest) {
       totalTokens: response.usage.total_tokens,
       costUSDC,
       provider,
-      free: isFreeTier,
-      txHash,
+      free: model.free,
       x402Signature,
       gatewayWallet,
       executionTrace,
@@ -364,7 +332,6 @@ export async function POST(req: NextRequest) {
 
     trace.succeed({
       costUSDC,
-      txHash,
       batteryRemaining: user.remaining - costUSDC,
       totalDuration: Date.now() - startTime,
     });
@@ -374,15 +341,22 @@ export async function POST(req: NextRequest) {
       await idempotencyGuard.set(fingerprint, response, 200);
     }
 
-    // Broadcast SSE events
     broadcastReceipt(apiKey, receipt);
     broadcastBalanceUpdate(apiKey, user.remaining);
 
-    // Return response with execution trace
-    return NextResponse.json({
-      ...response,
-      executionTrace,
-    });
+    return NextResponse.json(
+      {
+        ...response,
+        executionTrace,
+        badge: 'Upstream API paid by Untouched. Principal untouched.',
+      },
+      {
+        headers: {
+          'PAYMENT-RESPONSE': payment.header,
+          'x-x402-signature': payment.signature,
+        },
+      }
+    );
   } catch (error) {
     console.error('[Chat] Unexpected error:', error);
     trace.finalize();

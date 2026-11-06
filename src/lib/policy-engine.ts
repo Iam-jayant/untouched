@@ -44,8 +44,16 @@ export async function evaluatePolicy(
   if (!model) {
     return {
       allowed: false,
-      action: 'deny',
+      action: 'blocked_by_policy',
       reason: `Unknown model: ${request.model}`,
+    };
+  }
+
+  if (model.locked) {
+    return {
+      allowed: false,
+      action: 'blocked_by_policy',
+      reason: 'Locked — Protects the yield battery',
     };
   }
 
