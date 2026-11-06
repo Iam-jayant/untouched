@@ -6,15 +6,17 @@ We use all **3 Partner Prize Slots** allowed by ETHGlobal Mumbai. Every requirem
 
 ### Track A: Best DeFi or Onchain Finance Application Built End to End in Arc Studio (\$3,000)
 
-* \[ \] **Arc Studio Starting Point:** Project contracts (`PrincipalCreditVault.sol` & `MockUSYCOracle.sol`) are prompted, tested, and deployed inside `https://studio.arc.com`.
+* \[x\] **Arc Studio Starting Point:** `UntouchedVaultV2.sol` was compiled, tested, and deployed in Arc Studio. Workspace: https://studio.arc.io/app/34d39cc3-0fb6-4f0e-bb3b-503fe2e06425. Studio deployment: `0x494ef27eb33165407982ffc024c8d992f20dfa9f`.
 
-* \[ \] **Shareable Arc Studio Link:** Include the `studio.arc.com` project URL at the top of the README and ETHGlobal submission form.
+* \[x\] **Shareable Arc Studio Link:** The workspace URL is at the top of the README. Paste the same URL on the ETHGlobal submission form.
 
-* \[ \] **Show Arc Studio in Video:** Record the `studio.arc.com` workspace (prompts + contract compile/deploy) in the first 15–20 seconds of the demo video.
+* \[ \] **Show Arc Studio in Video:** Record the workspace (prompt, tests, and the deployed vault) in the first 15–20 seconds of the demo video.
 
-* \[ \] **USDC Settlement on Arc:** Uses Arc Testnet USDC (`0x3600000000000000000000000000000000000000`) for principal lock, credit reserve advance, and yield repayment.
+* \[x\] **USDC Settlement on Arc:** Uses Arc Testnet USDC (`0x3600000000000000000000000000000000000000`) for native stake, ERC-20 stake, and withdraw.
 
 ### Track B: Best Mobile Web Consumer Agent Using the Marketplace Discovery API (\$3,000)
+
+Not targeted. The phone screen is stake, yield battery, withdraw, and usage only.
 
 * \[ \] **Marketplace Discovery API Integration:** Queries `GET https://api.circle.com/v2/x402/discovery/resources?supportsCircleGateway=true` and dynamically selects services (`WEB_SEARCH_RESEARCH`, `CREATIVE`, `PREDICTION_MARKETS`).
 
@@ -26,16 +28,10 @@ We use all **3 Partner Prize Slots** allowed by ETHGlobal Mumbai. Every requirem
 
 ### Track C: Best Smart Contracts with Advanced Stablecoin Logic, In Arc Studio (\$3,000)
 
-* \[ \] **Conditional & Automated Stablecoin Flows:** Enforces hard principal-vs-yield isolation, instant 14-day reserve float advancement, automated NAV surplus reconciliation, and early-exit debt deduction.
+* \[x\] **Conditional & Automated Stablecoin Flows:** `UntouchedVaultV2` keeps principal separate from the 14-day 5% yield battery, records usage only inside that battery, returns principal minus used credit on withdraw, and lets the CRE caller restore used yield with `reconcile`.
 
-* \[ \] **Reusable Module:** Document how any other AI agent builder on Arc can call `PrincipalCreditVault` to give their users principal-protected Nanopayment allowances.
+* \[ \] **Reusable Module:** Document how another Arc app can call `depositNative`, `positions`, and `withdraw` on `UntouchedVaultV2`.
 
 ## Slot 2: Chainlink (\$5,000 Eligible — CRE Workflow Track)
 
-### Track: Best Workflow with Chainlink Runtime Environment (CRE) (\$1,500+)
-
-* \[ \] **CRITICAL Anti-Disqualification Rule:** **Frontend reads of Chainlink Price Feeds DO NOT QUALIFY.**
-
-* \[ \] **Onchain State Change:** `PrincipalCreditVault.sol` calls `usycOracle.latestRoundData()` (`AggregatorV3Interface`) directly inside `depositWithCreditAdvance()` and `reconcileAndRepay()`, mutating onchain storage variables (`usycShares`, `unpaidAdvanceUsdc`, `creditReservePoolUsdc`).
-
-* \[ \] **CRE Workflow Script:** Include the CRE workflow (`cre-workflow/reconcile-yield.ts`) that monitors accrued USYC NAV surplus and triggers `reconcileAndRepay(user)`.
+Not targeted. The app does not run a CRE workflow.

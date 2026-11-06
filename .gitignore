@@ -43,3 +43,6 @@ contracts/broadcast/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Arc Studio CLI dumps
+.arc-studio-*

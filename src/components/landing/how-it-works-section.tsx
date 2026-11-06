@@ -8,13 +8,10 @@ const steps = [
     title: "Deposit",
     subtitle: "& connect wallet",
     description: "Lock $10–$250+ USDC in your protected vault. Instantly receive 14 days of projected yield in your API Battery to start using AI.",
-    code: `// PrincipalCreditVault.sol on Arc (5042002)
-await vault.depositWithCreditAdvance(
-  parseUnits("50", 6),       // $50.00 Protected Principal
-  agentSignerEOA,            // Segregated Burner Signer
-  walletAddress              // Your Connected Wallet
-);
-// Fronts $0.0959 USDC + $0.0005 gas buffer`,
+    code: `// UntouchedVaultV2 on Arc (5042002)
+await vault.depositNative({ value: parseUnits("50", 18) });
+// Principal stays in the vault.
+// 14 days of 5% APY is added to the yield battery.`,
   },
   {
     number: "02",
@@ -33,16 +30,12 @@ const res = await client.chat.completions.create({
   },
   {
     number: "03",
-    title: "Reconcile",
-    subtitle: "via Chainlink CRE",
-    description: "As USYC NAV appreciates onchain, our Chainlink CRE workflow automatically redeems only the yield surplus to repay the Reserve Pool and recharge your battery.",
-    code: `// Chainlink CRE Workflow + AggregatorV3Interface
-const surplus = await vault.getAccruedSurplusUsdc(user);
-if (surplus > 0n) {
-  await vault.reconcileAndRepay(user);
-}
-//
-// Battery refilled to 100% • Principal: $50.00 untouched`,
+    title: "Withdraw",
+    subtitle: "principal comes back",
+    description: "Prompts spend the yield battery only. Withdraw returns your principal minus what that battery already covered.",
+    code: `await vault.withdraw();
+// Pays principal minus used yield.
+// The position is closed.`,
   },
 ];
 

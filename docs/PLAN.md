@@ -238,8 +238,6 @@ sseBus.emit('STEP_UP_RESOLVED', { status: 'APPROVED' });
   │   └── api/
   │       ├── v1/chat/completions/route.ts
   │       ├── discovery/route.ts
-  │       ├── world/
-  │       │   └── (removed)
   │       ├── vault/
   │       │   ├── deposit/route.ts
   │       │   ├── withdraw/route.ts

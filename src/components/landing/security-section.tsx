@@ -11,8 +11,8 @@ const securityFeatures = [
   },
   {
     icon: Lock,
-    title: "One credit line per deposit",
-    description: "Each deposit carries a unique nullifier. The vault rejects a reused nullifier, so the same credit advance cannot be claimed twice.",
+    title: "One position per wallet",
+    description: "A stake adds to your principal and your yield battery. Nothing else is recorded, and the same wallet cannot open a second position.",
   },
   {
     icon: Eye,
