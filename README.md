@@ -8,18 +8,18 @@ The contract was compiled, tested, and deployed in Arc Studio. The app runs on V
 
 ## Deployed
 
-- App: https://untouched-gamma.vercel.app
-- Dashboard: https://untouched-gamma.vercel.app/dashboard
-- Playground: https://untouched-gamma.vercel.app/playground
-- Phone: https://untouched-gamma.vercel.app/mobile
+- App: https://untouchedd.vercel.app
+- Dashboard: https://untouchedd.vercel.app/dashboard
+- Playground: https://untouchedd.vercel.app/playground
+- Phone: https://untouchedd.vercel.app/mobile
 - Arc Studio: https://studio.arc.io/share/arc-vault-untouched-builder-hkpzoai6sc
 - Source: https://github.com/Iam-jayant/untouched
 - Live vault: [`0xcA9F8D931b6a0dE64ED74757A66aCB203413f2C1`](https://testnet.arcscan.app/address/0xcA9F8D931b6a0dE64ED74757A66aCB203413f2C1)
 
-Point any OpenAI SDK at `https://untouched-gamma.vercel.app/api/v1`.
+Point any OpenAI SDK at `https://untouchedd.vercel.app/api/v1`.
 
 ```bash
-curl -X POST https://untouched-gamma.vercel.app/api/v1/chat/completions \
+curl -X POST https://untouchedd.vercel.app/api/v1/chat/completions \
   -H "Authorization: Bearer unt_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"Hello"}]}'
